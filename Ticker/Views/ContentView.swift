@@ -1,63 +1,84 @@
 import SwiftUI
 
-enum SidebarItem: String, CaseIterable, Identifiable {
-    case pending = "Görevler"
-    case calendar = "Takvim"
-    case completed = "Tamamlananlar"
-
-    var id: String { rawValue }
-
-    var icon: String {
-        switch self {
-        case .pending: return "checklist"
-        case .calendar: return "calendar"
-        case .completed: return "checkmark.circle.fill"
-        }
-    }
-}
-
 struct ContentView: View {
-
-    @State private var selection: SidebarItem = .pending
+    @State private var selection: SidebarItem = .calendar
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         NavigationSplitView {
-
-            List(SidebarItem.allCases, selection: $selection) { item in
-                HStack {
-                    Image(systemName: item.icon)
-                    Text(item.rawValue)
+            VStack(spacing: 0) {
+                // App header
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(.blue)
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("Ticker")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Spacer()
                 }
-                .tag(item) // 🔥 KRİTİK
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+
+                Divider().opacity(0.4)
+
+                List(SidebarItem.allCases, selection: $selection) { item in
+                    Label(item.rawValue, systemImage: item.icon)
+                        .tag(item)
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .listStyle(.sidebar)
+
+                Spacer()
+
+                // Bottom bar
+                VStack(spacing: 0) {
+                    Divider().opacity(0.4)
+                    HStack {
+                        Image(systemName: "person.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                        Text("Hesap")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            // settings
+                        } label: {
+                            Image(systemName: "gear")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                }
             }
-            .listStyle(.sidebar)
-            .frame(minWidth: 220)
+            .frame(minWidth: 200)
+            .background(GlassView(material: .sidebar))
 
         } detail: {
-
             VStack(spacing: 0) {
+                if selection != .calendar {
+                    GlobalSearchBar()
+                    Divider().opacity(0.4)
+                }
 
-                GlobalSearchBar()
-
-                Divider()
-
-                ZStack {
-                    Color.black.opacity(0.03).ignoresSafeArea()
-
+                Group {
                     switch selection {
                     case .pending:
                         TaskListView(showCompleted: false, title: "Görevler")
-
                     case .calendar:
                         CalendarView()
-
                     case .completed:
                         TaskListView(showCompleted: true, title: "Tamamlananlar")
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .frame(minWidth: 900, minHeight: 600)
+        .frame(minWidth: 960, minHeight: 640)
     }
 }
-//
