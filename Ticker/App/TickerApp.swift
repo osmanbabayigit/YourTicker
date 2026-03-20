@@ -14,7 +14,9 @@ struct TickerApp: App {
             BudgetCategory.self,
             BudgetEntry.self,
             BookItem.self,
-            BookNote.self
+            BookNote.self,
+            BookCollection.self,
+            ReadingSession.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
