@@ -16,6 +16,7 @@ struct AddTaskView: View {
     @State private var selectedTags: [TagItem] = []
     @State private var recurrenceRule: RecurrenceRule = .none
     @State private var recurrenceWeekdays: [Int] = []
+    @FocusState private var titleFocused: Bool
 
     init(selectedDate: Date) {
         _selectedDate = State(initialValue: selectedDate)
@@ -26,170 +27,177 @@ struct AddTaskView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            // Header
+            HStack(spacing: 12) {
+                Circle().fill(selectedColor.color).frame(width: 10, height: 10)
                 Text("Yeni Görev")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(TickerTheme.textPrimary)
                 Spacer()
                 Button("İptal") { dismiss() }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).font(.system(size: 13))
+                    .buttonStyle(.plain).font(.system(size: 12))
+                    .foregroundStyle(TickerTheme.textTertiary)
                 Button("Ekle") { saveTask() }
-                    .buttonStyle(.borderedProminent).tint(selectedColor.color)
-                    .font(.system(size: 13, weight: .medium))
+                    .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TickerTheme.blue)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(TickerTheme.blue.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            .padding(.horizontal, 20).padding(.vertical, 14)
+            .padding(.horizontal, 18).padding(.vertical, 14)
 
-            Divider().opacity(0.4)
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 0) {
 
-                    // Başlık
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("Görev Adı", systemImage: "pencil")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                    // Başlık + Not
+                    VStack(alignment: .leading, spacing: 8) {
+                        label("Başlık", icon: "pencil")
                         TextField("Ne yapılacak?", text: $title)
                             .textFieldStyle(.plain).font(.system(size: 14))
-                            .padding(10)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    // Not
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("Not", systemImage: "note.text")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                            .foregroundStyle(TickerTheme.textPrimary)
+                            .padding(10).background(TickerTheme.bgPill)
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .focused($titleFocused)
+                        label("Not", icon: "note.text")
                         TextEditor(text: $notes)
-                            .font(.system(size: 13)).frame(height: 60)
-                            .padding(6)
-                            .background(Color(nsColor: .controlBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .scrollContentBackground(.hidden)
+                            .font(.system(size: 13)).foregroundStyle(TickerTheme.textSecondary)
+                            .frame(height: 60).padding(6).scrollContentBackground(.hidden)
+                            .background(TickerTheme.bgPill).clipShape(RoundedRectangle(cornerRadius: 7))
                     }
+                    .padding(18)
+
+                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
                     // Tarih & Öncelik
-                    HStack(spacing: 16) {
-                        DateTimePickerField(
-                            label: "Tarih",
-                            icon: "calendar",
-                            date: $selectedDate,
-                            showTime: false
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
+                    HStack(spacing: 20) {
+                        DateTimePickerField(label: "Tarih", icon: "calendar",
+                                            date: $selectedDate, showTime: false)
                         VStack(alignment: .leading, spacing: 6) {
-                            Label("Öncelik", systemImage: "flag")
-                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            Picker("", selection: $priority) {
-                                Text("Düşük").tag(0)
-                                Text("Orta").tag(1)
-                                Text("Yüksek").tag(2)
+                            label("Öncelik", icon: "flag")
+                            HStack(spacing: 4) {
+                                ForEach([(0,"Yok"),(1,"Orta"),(2,"Yüksek")], id: \.0) { p, lbl in
+                                    Button { priority = p } label: {
+                                        Text(lbl).font(.system(size: 11, weight: .medium))
+                                            .padding(.horizontal, 8).padding(.vertical, 5)
+                                            .background(priority == p
+                                                        ? (p == 2 ? TickerTheme.red : p == 1 ? TickerTheme.orange : TickerTheme.bgPill).opacity(p == 0 ? 1 : 0.15)
+                                                        : TickerTheme.bgPill)
+                                            .foregroundStyle(priority == p
+                                                             ? (p == 2 ? TickerTheme.red : p == 1 ? TickerTheme.orange : TickerTheme.textSecondary)
+                                                             : TickerTheme.textTertiary)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                    }
+                                    .buttonStyle(.plain).animation(.spring(response: 0.2), value: priority)
+                                }
                             }
-                            .pickerStyle(.segmented).frame(width: 180)
                         }
                     }
+                    .padding(18)
+
+                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
                     // Hatırlatıcı
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Label("Hatırlatıcı", systemImage: "bell")
-                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+                            label("Hatırlatıcı", icon: "bell")
                             Spacer()
                             Toggle("", isOn: $reminderEnabled)
                                 .labelsHidden().toggleStyle(.switch).controlSize(.small)
                         }
                         if reminderEnabled {
-                            DateTimePickerField(
-                                label: "Hatırlatma zamanı",
-                                icon: "bell",
-                                date: $reminderDate,
-                                showTime: true
-                            )
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            DateTimePickerField(label: "Zaman", icon: "clock",
+                                                date: $reminderDate, showTime: true)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(18)
                     .animation(.spring(response: 0.25), value: reminderEnabled)
+
+                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
                     // Tekrarlama
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Tekrarlama", systemImage: "repeat")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        HStack(spacing: 6) {
+                        label("Tekrarlama", icon: "repeat")
+                        HStack(spacing: 5) {
                             ForEach(RecurrenceRule.allCases, id: \.self) { rule in
                                 Button { recurrenceRule = rule } label: {
-                                    Text(rule.label)
-                                        .font(.system(size: 11, weight: .medium))
+                                    Text(rule.label).font(.system(size: 11, weight: .medium))
                                         .padding(.horizontal, 8).padding(.vertical, 5)
                                         .background(recurrenceRule == rule
-                                                    ? selectedColor.color.opacity(0.2)
-                                                    : Color(nsColor: .controlBackgroundColor).opacity(0.6))
-                                        .foregroundStyle(recurrenceRule == rule ? selectedColor.color : .secondary)
-                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                                    ? selectedColor.color.opacity(0.15) : TickerTheme.bgPill)
+                                        .foregroundStyle(recurrenceRule == rule
+                                                         ? selectedColor.color : TickerTheme.textTertiary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 5))
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.plain).animation(.spring(response: 0.2), value: recurrenceRule)
                             }
                         }
                         if recurrenceRule == .custom {
-                            HStack(spacing: 6) {
+                            HStack(spacing: 5) {
                                 ForEach(weekdayLabels, id: \.0) { day, lbl in
                                     let isSel = recurrenceWeekdays.contains(day)
                                     Button {
                                         if isSel { recurrenceWeekdays.removeAll { $0 == day } }
                                         else { recurrenceWeekdays.append(day) }
                                     } label: {
-                                        Text(lbl)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .frame(width: 34, height: 28)
-                                            .background(isSel ? selectedColor.color.opacity(0.2) : Color(nsColor: .controlBackgroundColor).opacity(0.6))
-                                            .foregroundStyle(isSel ? selectedColor.color : .secondary)
-                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                        Text(lbl).font(.system(size: 11, weight: .medium))
+                                            .frame(width: 32, height: 26)
+                                            .background(isSel ? selectedColor.color.opacity(0.15) : TickerTheme.bgPill)
+                                            .foregroundStyle(isSel ? selectedColor.color : TickerTheme.textTertiary)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5))
                                     }
                                     .buttonStyle(.plain)
                                 }
                             }
-                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                    .padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(18)
                     .animation(.spring(response: 0.25), value: recurrenceRule)
 
+                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
+
                     // Etiketler
-                    TagPickerView(selectedTags: $selectedTags)
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    TagPickerView(selectedTags: $selectedTags).padding(18)
+
+                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
                     // Renk
                     VStack(alignment: .leading, spacing: 8) {
-                        Label("Renk", systemImage: "paintpalette")
-                            .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        HStack(spacing: 10) {
+                        label("Renk", icon: "circle.hexagongrid")
+                        HStack(spacing: 8) {
                             ForEach(TaskColor.allCases, id: \.self) { color in
                                 Button { selectedColor = color } label: {
                                     ZStack {
-                                        Circle().fill(color.color).frame(width: 26, height: 26)
+                                        Circle().fill(color.color).frame(width: 24, height: 24)
                                         if selectedColor == color {
-                                            Circle().strokeBorder(.white, lineWidth: 2).frame(width: 26, height: 26)
-                                            Image(systemName: "checkmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                                            Circle().strokeBorder(.white.opacity(0.8), lineWidth: 2).frame(width: 24, height: 24)
+                                            Image(systemName: "checkmark").font(.system(size: 8, weight: .heavy)).foregroundStyle(.white)
                                         }
                                     }
                                 }
-                                .buttonStyle(.plain)
-                                .animation(.spring(response: 0.2), value: selectedColor)
+                                .buttonStyle(.plain).animation(.spring(response: 0.15), value: selectedColor)
                             }
                         }
                     }
+                    .padding(18)
                 }
-                .padding(20)
             }
         }
-        .frame(width: 420)
-        .background(GlassView(material: .hudWindow))
+        .frame(width: 440)
+        .background(Color(hex: "#161618"))
+        .onAppear { titleFocused = true }
+    }
+
+    @ViewBuilder
+    private func label(_ text: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 9))
+            Text(text).font(.system(size: 10, weight: .medium)).kerning(0.3)
+        }
+        .foregroundStyle(TickerTheme.textTertiary).textCase(.uppercase)
     }
 
     private func saveTask() {
@@ -197,15 +205,11 @@ struct AddTaskView: View {
         guard !trimmed.isEmpty else { return }
         let maxOrder = (tasks.map { $0.sortOrder }.max() ?? -1) + 1
         let newTask = TaskItem(
-            title: trimmed,
-            dueDate: selectedDate,
+            title: trimmed, dueDate: selectedDate,
             reminderDate: reminderEnabled ? reminderDate : nil,
-            hexColor: selectedColor.rawValue,
-            priority: priority,
-            notes: notes,
-            sortOrder: maxOrder,
-            recurrenceRule: recurrenceRule,
-            recurrenceWeekdays: recurrenceWeekdays
+            hexColor: selectedColor.rawValue, priority: priority,
+            notes: notes, sortOrder: maxOrder,
+            recurrenceRule: recurrenceRule, recurrenceWeekdays: recurrenceWeekdays
         )
         newTask.tags = selectedTags
         context.insert(newTask)

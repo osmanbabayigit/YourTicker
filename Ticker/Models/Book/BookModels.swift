@@ -8,7 +8,7 @@ enum ReadingStatus: String, CaseIterable, Codable {
     case wantToRead = "wantToRead"
     case reading    = "reading"
     case finished   = "finished"
-    case queue      = "queue"       // Sırada bekliyor
+    case queue      = "queue"
 
     var label: String {
         switch self {
@@ -28,35 +28,33 @@ enum ReadingStatus: String, CaseIterable, Codable {
         }
     }
 
+    // TickerTheme uyumlu renkler
     var color: Color {
         switch self {
-        case .wantToRead: return .secondary
-        case .reading:    return .blue
-        case .finished:   return .green
-        case .queue:      return .orange
+        case .wantToRead: return TickerTheme.textTertiary
+        case .reading:    return TickerTheme.blue
+        case .finished:   return TickerTheme.green
+        case .queue:      return TickerTheme.orange
         }
     }
 }
 
-// MARK: - Kitap koleksiyonu (raf)
+// MARK: - Koleksiyon
 
 @Model
 class BookCollection {
     var id: UUID = UUID()
     var name: String = ""
     var icon: String = "books.vertical"
-    var hexColor: String = "#4C8EF7"
+    var hexColor: String = "#3B82F6"
     var sortOrder: Int = 0
     @Relationship var books: [BookItem] = []
 
-    init(name: String, icon: String = "books.vertical", hexColor: String = "#4C8EF7", sortOrder: Int = 0) {
-        self.name = name
-        self.icon = icon
-        self.hexColor = hexColor
-        self.sortOrder = sortOrder
+    init(name: String, icon: String = "books.vertical",
+         hexColor: String = "#3B82F6", sortOrder: Int = 0) {
+        self.name = name; self.icon = icon
+        self.hexColor = hexColor; self.sortOrder = sortOrder
     }
-
-    var color: Color { Color(hex: hexColor) }
 }
 
 // MARK: - Okuma seansı
@@ -70,11 +68,10 @@ class ReadingSession {
     var notes: String = ""
     var book: BookItem?
 
-    init(date: Date = Date(), pagesRead: Int, durationMinutes: Int = 0, notes: String = "") {
-        self.date = date
-        self.pagesRead = pagesRead
-        self.durationMinutes = durationMinutes
-        self.notes = notes
+    init(date: Date = Date(), pagesRead: Int,
+         durationMinutes: Int = 0, notes: String = "") {
+        self.date = date; self.pagesRead = pagesRead
+        self.durationMinutes = durationMinutes; self.notes = notes
     }
 }
 
@@ -90,9 +87,7 @@ class BookNote {
     var book: BookItem?
 
     init(content: String, page: Int = 0, isQuote: Bool = false) {
-        self.content = content
-        self.page = page
-        self.isQuote = isQuote
+        self.content = content; self.page = page; self.isQuote = isQuote
     }
 }
 
@@ -110,11 +105,10 @@ class BookItem {
     var startDate: Date? = nil
     var finishDate: Date? = nil
     var coverImageData: Data? = nil
-    var hexColor: String = "#4C8EF7"
+    var hexColor: String = "#3B82F6"
     var createdAt: Date = Date()
     var queueOrder: Int = 0
     var isbn: String = ""
-    var publisher: String = ""
     var publishYear: Int = 0
     var genre: String = ""
 
@@ -144,36 +138,31 @@ class BookItem {
 
     var totalPagesRead: Int { sessions.reduce(0) { $0 + $1.pagesRead } }
     var totalReadingMinutes: Int { sessions.reduce(0) { $0 + $1.durationMinutes } }
+    var sortedNotes: [BookNote] { notes.sorted { $0.createdAt > $1.createdAt } }
 
     init(title: String, author: String = "", totalPages: Int = 0,
-         status: ReadingStatus = .wantToRead, hexColor: String = "#4C8EF7") {
-        self.title = title
-        self.author = author
+         status: ReadingStatus = .wantToRead, hexColor: String = "#3B82F6") {
+        self.title = title; self.author = author
         self.totalPages = totalPages
-        self.statusRaw = status.rawValue
-        self.hexColor = hexColor
+        self.statusRaw = status.rawValue; self.hexColor = hexColor
     }
 }
 
-// MARK: - Okuma serisi yardımcısı
+// MARK: - Streak hesaplama
 
 struct ReadingStreakHelper {
     static func currentStreak(sessions: [ReadingSession]) -> Int {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
-        var streak = 0
         var checkDate = today
-
-        let sessionDates = Set(sessions.map { cal.startOfDay(for: $0.date) })
-
-        // Bugün veya dün okuduysa başlat
-        if !sessionDates.contains(today) {
+        let dates = Set(sessions.map { cal.startOfDay(for: $0.date) })
+        if !dates.contains(today) {
             guard let yesterday = cal.date(byAdding: .day, value: -1, to: today),
-                  sessionDates.contains(yesterday) else { return 0 }
+                  dates.contains(yesterday) else { return 0 }
             checkDate = yesterday
         }
-
-        while sessionDates.contains(checkDate) {
+        var streak = 0
+        while dates.contains(checkDate) {
             streak += 1
             guard let prev = cal.date(byAdding: .day, value: -1, to: checkDate) else { break }
             checkDate = prev
@@ -181,25 +170,7 @@ struct ReadingStreakHelper {
         return streak
     }
 
-    static func longestStreak(sessions: [ReadingSession]) -> Int {
-        let cal = Calendar.current
-        let dates = Set(sessions.map { cal.startOfDay(for: $0.date) }).sorted()
-        guard !dates.isEmpty else { return 0 }
-
-        var longest = 1, current = 1
-        for i in 1..<dates.count {
-            if let prev = cal.date(byAdding: .day, value: 1, to: dates[i-1]),
-               cal.isDate(prev, inSameDayAs: dates[i]) {
-                current += 1
-                longest = max(longest, current)
-            } else {
-                current = 1
-            }
-        }
-        return longest
-    }
-
-    static func last7DaysSessions(sessions: [ReadingSession]) -> [(Date, Int)] {
+    static func last7Days(sessions: [ReadingSession]) -> [(Date, Int)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         return (0..<7).reversed().map { offset -> (Date, Int) in

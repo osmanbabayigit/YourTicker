@@ -9,24 +9,25 @@ struct TagPickerView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("Etiketler", systemImage: "tag")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                Text("Etiketler")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(TickerTheme.textTertiary)
+                    .textCase(.uppercase).kerning(0.3)
                 Spacer()
                 Button {
                     showingManager = true
                 } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "plus")
+                        .font(.system(size: 11))
+                        .foregroundStyle(TickerTheme.textTertiary)
                 }
                 .buttonStyle(.plain)
             }
 
             if allTags.isEmpty {
-                Text("Henüz etiket yok — + ile ekle")
+                Text("Henüz etiket yok")
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TickerTheme.textTertiary)
             } else {
                 FlowLayout(spacing: 6) {
                     ForEach(allTags) { tag in
@@ -41,27 +42,26 @@ struct TagPickerView: View {
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(Color(hex: tag.hexColor))
-                                    .frame(width: 6, height: 6)
+                                    .frame(width: 5, height: 5)
                                 Text(tag.name)
                                     .font(.system(size: 11, weight: .medium))
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
                             .background(
                                 isSelected
-                                ? Color(hex: tag.hexColor).opacity(0.2)
-                                : Color(nsColor: .controlBackgroundColor)
+                                ? Color(hex: tag.hexColor).opacity(0.15)
+                                : TickerTheme.bgPill
                             )
                             .foregroundStyle(
                                 isSelected
                                 ? Color(hex: tag.hexColor)
-                                : .secondary
+                                : TickerTheme.textSecondary
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: 5)
                                     .stroke(
-                                        isSelected ? Color(hex: tag.hexColor).opacity(0.5) : Color.clear,
+                                        isSelected ? Color(hex: tag.hexColor).opacity(0.3) : TickerTheme.borderSub,
                                         lineWidth: 1
                                     )
                             )
@@ -93,8 +93,7 @@ struct FlowLayout: Layout {
             let size = view.sizeThatFits(.unspecified)
             if x + size.width > maxWidth, x > 0 {
                 y += rowHeight + spacing
-                x = 0
-                rowHeight = 0
+                x = 0; rowHeight = 0
             }
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
@@ -111,8 +110,7 @@ struct FlowLayout: Layout {
             let size = view.sizeThatFits(.unspecified)
             if x + size.width > bounds.maxX, x > bounds.minX {
                 y += rowHeight + spacing
-                x = bounds.minX
-                rowHeight = 0
+                x = bounds.minX; rowHeight = 0
             }
             view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
             x += size.width + spacing

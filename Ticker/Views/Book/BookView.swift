@@ -13,56 +13,35 @@ struct BookView: View {
     @State private var showingSearch = false
     @State private var showingCollections = false
     @State private var selectedBook: BookItem? = nil
-    @State private var yearlyGoal: Int = UserDefaults.standard.integer(forKey: "yearlyBookGoal") == 0
+    @State private var viewMode: ViewMode = .grid
+    @State private var yearlyGoal = UserDefaults.standard.integer(forKey: "yearlyBookGoal") == 0
         ? 12 : UserDefaults.standard.integer(forKey: "yearlyBookGoal")
     @State private var showingGoalEdit = false
     @State private var goalText = ""
-    @State private var viewMode: BookViewMode = .grid
 
-    enum BookViewMode { case grid, list }
+    enum ViewMode { case grid, list }
 
-    var filteredBooks: [BookItem] {
-        var result = books
-        if let s = selectedStatus { result = result.filter { $0.status == s } }
-        if let col = selectedCollection { result = result.filter { $0.collections.contains { $0.id == col.id } } }
-        return result
+    private var filteredBooks: [BookItem] {
+        var r = books
+        if let s = selectedStatus { r = r.filter { $0.status == s } }
+        if let col = selectedCollection { r = r.filter { $0.collections.contains { $0.id == col.id } } }
+        return r
     }
 
-    var finishedThisYear: Int {
-        let year = Calendar.current.component(.year, from: Date())
-        return books.filter {
-            $0.status == .finished &&
-            ($0.finishDate.map { Calendar.current.component(.year, from: $0) == year } ?? false)
-        }.count
+    private var finishedThisYear: Int {
+        let y = Calendar.current.component(.year, from: Date())
+        return books.filter { $0.status == .finished && ($0.finishDate.map { Calendar.current.component(.year, from: $0) == y } ?? false) }.count
     }
-
-    var currentStreak: Int { ReadingStreakHelper.currentStreak(sessions: allSessions) }
-    var last7Days: [(Date, Int)] { ReadingStreakHelper.last7DaysSessions(sessions: allSessions) }
-    var totalPagesRead: Int { allSessions.reduce(0) { $0 + $1.pagesRead } }
-
-    var currentlyReading: [BookItem] { books.filter { $0.status == .reading } }
-    var queueBooks: [BookItem] { books.filter { $0.status == .queue }.sorted { $0.queueOrder < $1.queueOrder } }
+    private var currentStreak: Int { ReadingStreakHelper.currentStreak(sessions: allSessions) }
+    private var last7Days: [(Date, Int)] { ReadingStreakHelper.last7Days(sessions: allSessions) }
+    private var totalPagesRead: Int { allSessions.reduce(0) { $0 + $1.pagesRead } }
 
     var body: some View {
         HSplitView {
-            // Sol sidebar
-            bookSidebar
-                .frame(minWidth: 200, maxWidth: 240)
-
-            // Ana içerik
-            VStack(spacing: 0) {
-                topBar
-                Divider().opacity(0.3)
-
-                if filteredBooks.isEmpty {
-                    emptyState
-                } else if viewMode == .grid {
-                    bookGrid
-                } else {
-                    bookList
-                }
-            }
+            bookSidebar.frame(minWidth: 200, maxWidth: 240)
+            mainContent
         }
+        .background(TickerTheme.bgApp)
         .sheet(isPresented: $showingAddBook) { AddBookView() }
         .sheet(isPresented: $showingSearch) { BookSearchView() }
         .sheet(isPresented: $showingCollections) { BookCollectionManagerView() }
@@ -79,110 +58,56 @@ struct BookView: View {
         }
     }
 
-    // MARK: - Sol sidebar
+    // MARK: - Sidebar
 
     private var bookSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Streak + istatistik
-            VStack(alignment: .leading, spacing: 10) {
-                if currentStreak > 0 {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle().fill(Color.orange.opacity(0.15)).frame(width: 36, height: 36)
-                            Text("🔥").font(.system(size: 18))
-                        }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("\(currentStreak) günlük seri")
-                                .font(.system(size: 13, weight: .bold))
-                            Text("Okumaya devam et!")
-                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(10)
-                    .background(Color.orange.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                    // 7 günlük aktivite
-                    HStack(spacing: 3) {
-                        ForEach(last7Days, id: \.0) { date, pages in
-                            VStack(spacing: 3) {
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(pages > 0 ? Color.orange : Color.secondary.opacity(0.15))
-                                    .frame(width: 18, height: pages > 0 ? min(CGFloat(pages) / 5 + 8, 28) : 8)
-                                Text(date.formatted(.dateTime.weekday(.narrow)))
-                                    .font(.system(size: 8)).foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .bottom)
-                        }
-                    }
-                    .frame(height: 40)
-                }
-
-                // Mini istatistikler
-                HStack(spacing: 0) {
-                    miniStat(value: "\(finishedThisYear)", label: "Bu yıl", color: .green)
-                    Divider().frame(height: 28)
-                    miniStat(value: "\(totalPagesRead)", label: "Sayfa", color: .blue)
-                    Divider().frame(height: 28)
-                    miniStat(value: "\(books.filter { $0.status == .reading }.count)", label: "Aktif", color: .orange)
-                }
-                .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                // Yıllık hedef
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Hedef: \(finishedThisYear)/\(yearlyGoal)")
-                            .font(.system(size: 11, weight: .semibold))
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.blue.opacity(0.12)).frame(height: 5)
-                                Capsule().fill(Color.blue)
-                                    .frame(width: geo.size.width * min(Double(finishedThisYear) / Double(yearlyGoal), 1.0), height: 5)
-                            }
-                        }
-                        .frame(height: 5)
-                    }
-                    Button { goalText = "\(yearlyGoal)"; showingGoalEdit = true } label: {
-                        Image(systemName: "pencil").font(.system(size: 10)).foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
+            // Streak kartı
+            if currentStreak > 0 {
+                streakCard.padding(12)
+                Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
             }
-            .padding(12)
 
-            Divider().opacity(0.3)
+            // Mini istatistikler
+            HStack(spacing: 0) {
+                miniStat(value: "\(finishedThisYear)", label: "Bu yıl", color: TickerTheme.green)
+                Rectangle().fill(TickerTheme.borderSub).frame(width: 1, height: 28)
+                miniStat(value: "\(totalPagesRead)", label: "Sayfa", color: TickerTheme.blue)
+                Rectangle().fill(TickerTheme.borderSub).frame(width: 1, height: 28)
+                miniStat(value: "\(books.filter { $0.status == .reading }.count)", label: "Aktif", color: TickerTheme.orange)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 6)
+
+            // Yıllık hedef
+            goalBar.padding(.horizontal, 12).padding(.bottom, 8)
+
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
             // Filtreler
             ScrollView {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     // Tümü
-                    sidebarFilterRow(label: "Tüm Kitaplar", icon: "books.vertical",
-                                     count: books.count, isSelected: selectedStatus == nil && selectedCollection == nil) {
+                    filterRow(label: "Tüm Kitaplar", icon: "books.vertical",
+                               count: books.count,
+                               isSelected: selectedStatus == nil && selectedCollection == nil) {
                         selectedStatus = nil; selectedCollection = nil
                     }
 
-                    // Durumlar
                     ForEach(ReadingStatus.allCases, id: \.self) { s in
-                        let count = books.filter { $0.status == s }.count
-                        sidebarFilterRow(label: s.label, icon: s.icon, color: s.color,
-                                         count: count, isSelected: selectedStatus == s && selectedCollection == nil) {
+                        filterRow(label: s.label, icon: s.icon, color: s.color,
+                                   count: books.filter { $0.status == s }.count,
+                                   isSelected: selectedStatus == s && selectedCollection == nil) {
                             selectedStatus = s; selectedCollection = nil
                         }
                     }
 
                     if !collections.isEmpty {
-                        Text("KOLEKSIYONLAR")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 4)
-
+                        sidebarSectionLabel("KOLEKSİYONLAR")
                         ForEach(collections) { col in
-                            let count = col.books.count
-                            sidebarFilterRow(label: col.name, icon: col.icon,
-                                             color: Color(hex: col.hexColor),
-                                             count: count,
-                                             isSelected: selectedCollection?.id == col.id) {
+                            filterRow(label: col.name, icon: col.icon,
+                                       color: Color(hex: col.hexColor),
+                                       count: col.books.count,
+                                       isSelected: selectedCollection?.id == col.id) {
                                 selectedCollection = col; selectedStatus = nil
                             }
                         }
@@ -191,110 +116,212 @@ struct BookView: View {
                 .padding(.horizontal, 8).padding(.vertical, 4)
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            // Koleksiyon yönetimi butonu
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
             Button {
                 showingCollections = true
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "folder.badge.plus").font(.system(size: 12))
+                    Image(systemName: "folder.badge.plus").font(.system(size: 11))
                     Text("Koleksiyon Yönet").font(.system(size: 11))
                 }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+                .foregroundStyle(TickerTheme.textTertiary)
+                .frame(maxWidth: .infinity).padding(.vertical, 9)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.bottom, 8)
-
-            Divider().opacity(0.3)
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.3))
+        .background(TickerTheme.bgSidebar)
+    }
+
+    // MARK: - Streak kartı
+
+    private var streakCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle().fill(TickerTheme.orange.opacity(0.12)).frame(width: 32, height: 32)
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 14)).foregroundStyle(TickerTheme.orange)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(currentStreak) günlük seri")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(TickerTheme.textPrimary)
+                    Text("Okumaya devam et!")
+                        .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+                }
+            }
+
+            // 7 günlük bar
+            let maxPages = max(last7Days.map { $0.1 }.max() ?? 1, 1)
+            HStack(alignment: .bottom, spacing: 3) {
+                ForEach(last7Days, id: \.0) { date, pages in
+                    VStack(spacing: 2) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(pages > 0 ? TickerTheme.orange : TickerTheme.bgPill)
+                            .frame(
+                                width: 16,
+                                height: max(CGFloat(pages) / CGFloat(maxPages) * 24, pages > 0 ? 4 : 3)
+                            )
+                        Text(date.formatted(.dateTime.weekday(.narrow)))
+                            .font(.system(size: 8)).foregroundStyle(TickerTheme.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 36)
+        }
+        .padding(10)
+        .background(TickerTheme.orange.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(TickerTheme.orange.opacity(0.15), lineWidth: 1)
+        )
     }
 
     @ViewBuilder
     private func miniStat(value: String, label: String, color: Color) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.system(size: 14, weight: .bold)).foregroundStyle(color)
-            Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
+            Text(label).font(.system(size: 9)).foregroundStyle(TickerTheme.textTertiary)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 8)
+        .frame(maxWidth: .infinity).padding(.vertical, 6)
+    }
+
+    private var goalBar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text("\(finishedThisYear)/\(yearlyGoal) kitap hedefi")
+                    .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+                Spacer()
+                Button {
+                    goalText = "\(yearlyGoal)"; showingGoalEdit = true
+                } label: {
+                    Image(systemName: "pencil").font(.system(size: 9))
+                        .foregroundStyle(TickerTheme.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(TickerTheme.bgPill).frame(height: 4)
+                    Capsule().fill(TickerTheme.blue)
+                        .frame(
+                            width: geo.size.width * min(Double(finishedThisYear) / Double(yearlyGoal), 1.0),
+                            height: 4
+                        )
+                        .animation(.spring(response: 0.5), value: finishedThisYear)
+                }
+            }
+            .frame(height: 4)
+        }
     }
 
     @ViewBuilder
-    private func sidebarFilterRow(label: String, icon: String, color: Color = .secondary,
-                                   count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func filterRow(label: String, icon: String, color: Color = TickerTheme.textTertiary,
+                            count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                    .foregroundStyle(isSelected ? .white : color)
-                    .frame(width: 16)
+            HStack(spacing: 9) {
+                Image(systemName: icon).font(.system(size: 11))
+                    .foregroundStyle(isSelected ? TickerTheme.textPrimary : color)
+                    .frame(width: 14)
                 Text(label).font(.system(size: 12))
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(isSelected ? TickerTheme.textPrimary : TickerTheme.textSecondary)
                 Spacer()
-                Text("\(count)").font(.system(size: 11))
-                    .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
+                if count > 0 {
+                    Text("\(count)").font(.system(size: 11))
+                        .foregroundStyle(TickerTheme.textTertiary)
+                }
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(isSelected ? Color.blue : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.white.opacity(0.07) : Color.clear)
+            )
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: - Top bar
+    @ViewBuilder
+    private func sidebarSectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .medium)).foregroundStyle(TickerTheme.textTertiary)
+            .kerning(0.5).padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 2)
+    }
 
-    private var topBar: some View {
+    // MARK: - Ana içerik
+
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            mainTopBar
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
+
+            if filteredBooks.isEmpty {
+                emptyState
+            } else if viewMode == .grid {
+                bookGrid
+            } else {
+                bookList
+            }
+        }
+        .background(TickerTheme.bgApp)
+    }
+
+    private var mainTopBar: some View {
         HStack {
             Text(selectedCollection?.name ?? selectedStatus?.label ?? "Kitaplık")
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TickerTheme.textPrimary)
+
             Text("\(filteredBooks.count)")
-                .font(.system(size: 13)).foregroundStyle(.secondary)
-                .padding(.horizontal, 7).padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(Capsule())
+                .font(.system(size: 11)).foregroundStyle(TickerTheme.textTertiary)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(TickerTheme.bgPill).clipShape(Capsule())
 
             Spacer()
 
-            HStack(spacing: 8) {
-                // Grid / List toggle
-                HStack(spacing: 2) {
-                    ForEach([("square.grid.2x2", BookViewMode.grid), ("list.bullet", BookViewMode.list)],
-                            id: \.0) { icon, mode in
-                        Button { viewMode = mode } label: {
-                            Image(systemName: icon).font(.system(size: 12))
-                                .frame(width: 26, height: 26)
-                                .background(viewMode == mode ? Color.blue : Color.clear)
-                                .foregroundStyle(viewMode == mode ? .white : .secondary)
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
+            // Grid / List
+            HStack(spacing: 2) {
+                ForEach([(ViewMode.grid, "square.grid.2x2"), (ViewMode.list, "list.bullet")], id: \.1) { mode, icon in
+                    Button { viewMode = mode } label: {
+                        Image(systemName: icon).font(.system(size: 11))
+                            .frame(width: 24, height: 24)
+                            .background(viewMode == mode ? TickerTheme.bgPill : Color.clear)
+                            .foregroundStyle(viewMode == mode ? TickerTheme.textPrimary : TickerTheme.textTertiary)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(2)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-
-                Button { showingSearch = true } label: {
-                    Label("Ara", systemImage: "magnifyingglass")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.bordered).controlSize(.small)
-
-                Button { showingAddBook = true } label: {
-                    Label("Manuel Ekle", systemImage: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .buttonStyle(.borderedProminent).tint(.blue).controlSize(.small)
             }
+            .padding(2).background(TickerTheme.bgCard).clipShape(RoundedRectangle(cornerRadius: 7))
+
+            Button { showingSearch = true } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 10))
+                    Text("Ara").font(.system(size: 11))
+                }
+                .foregroundStyle(TickerTheme.textSecondary)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(TickerTheme.bgPill).clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(TickerTheme.borderMid, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Button { showingAddBook = true } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus").font(.system(size: 10))
+                    Text("Ekle").font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(TickerTheme.blue).clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
     }
-
-    // MARK: - Grid
 
     private var bookGrid: some View {
         ScrollView {
@@ -312,8 +339,6 @@ struct BookView: View {
         }
     }
 
-    // MARK: - List
-
     private var bookList: some View {
         List {
             ForEach(filteredBooks) { book in
@@ -324,8 +349,8 @@ struct BookView: View {
                     .contextMenu { bookContextMenu(book) }
             }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .listStyle(.plain).scrollContentBackground(.hidden)
+        .background(TickerTheme.bgApp)
     }
 
     @ViewBuilder
@@ -345,12 +370,9 @@ struct BookView: View {
                 ForEach(collections) { col in
                     Button {
                         if !book.collections.contains(where: { $0.id == col.id }) {
-                            book.collections.append(col)
-                            try? context.save()
+                            book.collections.append(col); try? context.save()
                         }
-                    } label: {
-                        Label(col.name, systemImage: col.icon)
-                    }
+                    } label: { Label(col.name, systemImage: col.icon) }
                 }
             }
         }
@@ -360,38 +382,49 @@ struct BookView: View {
         } label: { Label("Sil", systemImage: "trash") }
     }
 
-    // MARK: - Empty state
-
     private var emptyState: some View {
         VStack(spacing: 16) {
             Spacer()
-            ZStack {
-                Circle().fill(Color.blue.opacity(0.06)).frame(width: 80, height: 80)
-                Image(systemName: "books.vertical")
-                    .font(.system(size: 30, weight: .light)).foregroundStyle(.secondary.opacity(0.4))
+            Image(systemName: "books.vertical")
+                .font(.system(size: 32, weight: .ultraLight))
+                .foregroundStyle(TickerTheme.textTertiary)
+            VStack(spacing: 4) {
+                Text("Kitaplık boş").font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(TickerTheme.textSecondary)
+                Text("API'den ara veya manuel ekle")
+                    .font(.system(size: 11)).foregroundStyle(TickerTheme.textTertiary)
             }
-            Text("Henüz kitap yok").font(.system(size: 16, weight: .medium)).foregroundStyle(.primary.opacity(0.6))
-            Text("API'den ara veya manuel ekle")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Button { showingSearch = true } label: {
-                    Label("Kitap Ara", systemImage: "magnifyingglass")
-                        .font(.system(size: 12, weight: .medium))
+                    HStack(spacing: 5) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 11))
+                        Text("Kitap Ara").font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(TickerTheme.blue)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(TickerTheme.blue.opacity(0.12)).clipShape(Capsule())
+                    .overlay(Capsule().stroke(TickerTheme.blue.opacity(0.2), lineWidth: 1))
                 }
-                .buttonStyle(.borderedProminent).tint(.blue).controlSize(.regular)
+                .buttonStyle(.plain)
+
                 Button { showingAddBook = true } label: {
-                    Label("Manuel Ekle", systemImage: "plus")
-                        .font(.system(size: 12))
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus").font(.system(size: 11))
+                        Text("Manuel Ekle").font(.system(size: 12))
+                    }
+                    .foregroundStyle(TickerTheme.textSecondary)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(TickerTheme.bgPill).clipShape(Capsule())
                 }
-                .buttonStyle(.bordered).controlSize(.regular)
+                .buttonStyle(.plain)
             }
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity).background(TickerTheme.bgApp)
     }
 }
 
-// MARK: - Kitap list satırı
+// MARK: - Liste satırı
 
 struct BookListRow: View {
     let book: BookItem
@@ -403,66 +436,70 @@ struct BookListRow: View {
             Group {
                 if let img = book.coverImage {
                     Image(nsImage: img).resizable().scaledToFill()
-                        .frame(width: 40, height: 56).clipped().clipShape(RoundedRectangle(cornerRadius: 5))
+                        .frame(width: 38, height: 52).clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
                 } else {
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(Color(hex: book.hexColor).opacity(0.2))
-                        .frame(width: 40, height: 56)
-                        .overlay(Image(systemName: "book.closed").font(.system(size: 14))
-                            .foregroundStyle(Color(hex: book.hexColor).opacity(0.5)))
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 5).fill(Color(hex: book.hexColor).opacity(0.15))
+                        Image(systemName: "book.closed.fill").font(.system(size: 14))
+                            .foregroundStyle(Color(hex: book.hexColor).opacity(0.4))
+                    }
+                    .frame(width: 38, height: 52)
                 }
             }
+            .overlay(
+                RoundedRectangle(cornerRadius: 5).stroke(TickerTheme.borderSub, lineWidth: 1)
+            )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(book.title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                Text(book.author).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-
+                Text(book.title).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(TickerTheme.textPrimary).lineLimit(1)
+                if !book.author.isEmpty {
+                    Text(book.author).font(.system(size: 11))
+                        .foregroundStyle(TickerTheme.textTertiary).lineLimit(1)
+                }
                 if book.status == .reading && book.totalPages > 0 {
                     HStack(spacing: 6) {
-                        Text("\(book.currentPage)/\(book.totalPages) s.")
-                            .font(.system(size: 10)).foregroundStyle(.secondary)
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.secondary.opacity(0.12)).frame(height: 3)
-                                Capsule().fill(Color(hex: book.hexColor))
-                                    .frame(width: geo.size.width * book.progressPercent, height: 3)
-                            }
+                        Text("\(book.currentPage)/\(book.totalPages)")
+                            .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(TickerTheme.bgPill).frame(width: 60, height: 3)
+                            Capsule().fill(Color(hex: book.hexColor))
+                                .frame(width: 60 * book.progressPercent, height: 3)
                         }
-                        .frame(width: 80, height: 3)
                     }
                 }
             }
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: 5) {
                 HStack(spacing: 4) {
-                    Image(systemName: book.status.icon).font(.system(size: 10))
-                    Text(book.status.label).font(.system(size: 10))
+                    Image(systemName: book.status.icon).font(.system(size: 9))
+                    Text(book.status.label).font(.system(size: 10, weight: .medium))
                 }
                 .foregroundStyle(book.status.color)
                 .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(book.status.color.opacity(0.1))
-                .clipShape(Capsule())
+                .background(book.status.color.opacity(0.1)).clipShape(Capsule())
 
                 if book.rating > 0 {
-                    HStack(spacing: 2) {
+                    HStack(spacing: 1) {
                         ForEach(1...5, id: \.self) { i in
                             Image(systemName: i <= book.rating ? "star.fill" : "star")
                                 .font(.system(size: 8))
-                                .foregroundStyle(i <= book.rating ? .yellow : .secondary.opacity(0.3))
+                                .foregroundStyle(i <= book.rating ? Color(hex: "#FBBF24") : TickerTheme.textTertiary)
                         }
                     }
                 }
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 14).padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(isHovered ? 0.7 : 0.4))
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? TickerTheme.bgCardHover : Color.clear)
         )
         .onHover { isHovered = $0 }
-        .animation(.easeOut(duration: 0.12), value: isHovered)
-        .padding(.horizontal, 12).padding(.bottom, 4)
+        .animation(.easeOut(duration: 0.1), value: isHovered)
+        .padding(.horizontal, 12).padding(.bottom, 2)
     }
 }

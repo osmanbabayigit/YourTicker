@@ -7,67 +7,47 @@ struct BudgetColor: Identifiable, Hashable {
     let id: String
     let hex: String
     let label: String
-
     var color: Color { Color(hex: hex) }
 
     static let palette: [BudgetColor] = [
-        // Maviler
-        BudgetColor(id: "sky",      hex: "#5B9CF6", label: "Gökyüzü"),
-        BudgetColor(id: "ocean",    hex: "#2DD4BF", label: "Okyanus"),
-        BudgetColor(id: "indigo",   hex: "#818CF8", label: "İndigo"),
-
-        // Yeşiller
-        BudgetColor(id: "mint",     hex: "#34D399", label: "Nane"),
-        BudgetColor(id: "lime",     hex: "#A3E635", label: "Limon"),
-        BudgetColor(id: "forest",   hex: "#4ADE80", label: "Orman"),
-
-        // Kırmızı / Turuncu
-        BudgetColor(id: "coral",    hex: "#FB7185", label: "Mercan"),
-        BudgetColor(id: "sunset",   hex: "#FB923C", label: "Günbatımı"),
-        BudgetColor(id: "amber",    hex: "#FBBF24", label: "Kehribar"),
-
-        // Mor / Pembe
-        BudgetColor(id: "violet",   hex: "#C084FC", label: "Viyole"),
-        BudgetColor(id: "rose",     hex: "#F472B6", label: "Gül"),
-        BudgetColor(id: "fuchsia",  hex: "#E879F9", label: "Fuşya"),
-
-        // Nötr
-        BudgetColor(id: "slate",    hex: "#94A3B8", label: "Arduvaz"),
-        BudgetColor(id: "sand",     hex: "#D4A574", label: "Kum"),
-        BudgetColor(id: "charcoal", hex: "#6B7280", label: "Kömür"),
+        BudgetColor(id: "sky",     hex: "#5B9CF6", label: "Gökyüzü"),
+        BudgetColor(id: "ocean",   hex: "#2DD4BF", label: "Okyanus"),
+        BudgetColor(id: "indigo",  hex: "#818CF8", label: "İndigo"),
+        BudgetColor(id: "mint",    hex: "#34D399", label: "Nane"),
+        BudgetColor(id: "lime",    hex: "#A3E635", label: "Limon"),
+        BudgetColor(id: "coral",   hex: "#FB7185", label: "Mercan"),
+        BudgetColor(id: "sunset",  hex: "#FB923C", label: "Günbatımı"),
+        BudgetColor(id: "amber",   hex: "#FBBF24", label: "Kehribar"),
+        BudgetColor(id: "violet",  hex: "#C084FC", label: "Viyole"),
+        BudgetColor(id: "rose",    hex: "#F472B6", label: "Gül"),
+        BudgetColor(id: "slate",   hex: "#94A3B8", label: "Arduvaz"),
+        BudgetColor(id: "sand",    hex: "#D4A574", label: "Kum"),
     ]
 }
 
-// MARK: - Renk seçici grid
+// MARK: - Renk seçici
 
 struct BudgetColorPicker: View {
     @Binding var selectedHex: String
-
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 5)
+    let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 6)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
+        LazyVGrid(columns: columns, spacing: 8) {
             ForEach(BudgetColor.palette) { bc in
-                let isSelected = selectedHex == bc.hex
-                Button {
-                    selectedHex = bc.hex
-                } label: {
+                Button { selectedHex = bc.hex } label: {
                     ZStack {
-                        Circle()
-                            .fill(bc.color.opacity(0.25))
-                            .frame(width: 36, height: 36)
-                        Circle()
-                            .fill(bc.color)
-                            .frame(width: isSelected ? 24 : 20, height: isSelected ? 24 : 20)
-                        if isSelected {
+                        Circle().fill(bc.color.opacity(0.2)).frame(width: 30, height: 30)
+                        Circle().fill(bc.color)
+                            .frame(width: selectedHex == bc.hex ? 20 : 16,
+                                   height: selectedHex == bc.hex ? 20 : 16)
+                        if selectedHex == bc.hex {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(.white)
+                                .font(.system(size: 7, weight: .heavy)).foregroundStyle(.white)
                         }
                     }
                 }
                 .buttonStyle(.plain)
-                .animation(.spring(response: 0.2), value: isSelected)
+                .animation(.spring(response: 0.2), value: selectedHex)
                 .help(bc.label)
             }
         }
@@ -85,9 +65,10 @@ struct BudgetCategoryManagerView: View {
     @State private var newColorHex = BudgetColor.palette[0].hex
     @State private var newLimit = ""
     @State private var newIcon = "tag"
+    @State private var categoryToDelete: BudgetCategory? = nil
     @FocusState private var focused: Bool
 
-    let categoryIcons = [
+    let icons = [
         "tag", "cart", "house", "car", "fork.knife",
         "tshirt", "pills", "gamecontroller", "airplane", "gift",
         "graduationcap", "film", "music.note", "dumbbell", "leaf"
@@ -97,168 +78,187 @@ struct BudgetCategoryManagerView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Kategoriler").font(.system(size: 15, weight: .semibold))
+                Circle().fill(Color(hex: newColorHex)).frame(width: 10, height: 10)
+                Text("Kategoriler")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(TickerTheme.textPrimary)
                 Spacer()
                 Button("Kapat") { dismiss() }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(TickerTheme.textTertiary)
             }
-            .padding(.horizontal, 20).padding(.vertical, 14)
+            .padding(.horizontal, 18).padding(.vertical, 14)
 
-            Divider().opacity(0.4)
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
-            // Yeni kategori formu
             ScrollView {
-                VStack(spacing: 14) {
-
-                    // İsim + Limit
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Kategori adı")
-                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            TextField("Örn: Market", text: $newName)
-                                .textFieldStyle(.plain).font(.system(size: 13))
-                                .padding(8).background(Color(nsColor: .controlBackgroundColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
-                                .focused($focused).onSubmit { addCategory() }
+                VStack(spacing: 0) {
+                    // Yeni kategori formu
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Ad + Limit
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                sectionLabel("Kategori adı", icon: "tag")
+                                TextField("Market, Kira...", text: $newName)
+                                    .textFieldStyle(.plain).font(.system(size: 13))
+                                    .foregroundStyle(TickerTheme.textPrimary).focused($focused)
+                                    .padding(8).background(TickerTheme.bgPill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                                    .onSubmit { addCategory() }
+                            }
+                            VStack(alignment: .leading, spacing: 5) {
+                                sectionLabel("Aylık limit", icon: "turkish.lira.sign")
+                                TextField("0", text: $newLimit)
+                                    .textFieldStyle(.plain).font(.system(size: 13))
+                                    .foregroundStyle(TickerTheme.textPrimary)
+                                    .padding(8).background(TickerTheme.bgPill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                                    .frame(width: 90)
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Aylık limit (₺)")
-                                .font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            TextField("0", text: $newLimit)
-                                .textFieldStyle(.plain).font(.system(size: 13))
-                                .padding(8).background(Color(nsColor: .controlBackgroundColor))
+
+                        // İkon
+                        VStack(alignment: .leading, spacing: 6) {
+                            sectionLabel("İkon", icon: "square.grid.2x2")
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 6) {
+                                    ForEach(icons, id: \.self) { icon in
+                                        Button { newIcon = icon } label: {
+                                            Image(systemName: icon).font(.system(size: 14))
+                                                .frame(width: 34, height: 34)
+                                                .background(newIcon == icon
+                                                            ? Color(hex: newColorHex).opacity(0.15)
+                                                            : TickerTheme.bgPill)
+                                                .foregroundStyle(newIcon == icon
+                                                                 ? Color(hex: newColorHex)
+                                                                 : TickerTheme.textTertiary)
+                                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 7)
+                                                        .stroke(newIcon == icon
+                                                                ? Color(hex: newColorHex).opacity(0.3)
+                                                                : TickerTheme.borderSub, lineWidth: 1)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .animation(.spring(response: 0.2), value: newIcon)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Renk
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Renk", icon: "circle.hexagongrid")
+                            BudgetColorPicker(selectedHex: $newColorHex)
+                        }
+
+                        // Önizleme + Ekle
+                        HStack(spacing: 10) {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle().fill(Color(hex: newColorHex).opacity(0.12)).frame(width: 30, height: 30)
+                                    Image(systemName: newIcon).font(.system(size: 13))
+                                        .foregroundStyle(Color(hex: newColorHex))
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(newName.isEmpty ? "Kategori adı" : newName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(newName.isEmpty ? TickerTheme.textTertiary : TickerTheme.textPrimary)
+                                    if let limit = Double(newLimit.replacingOccurrences(of: ",", with: ".")), limit > 0 {
+                                        Text(CurrencyHelper.format(limit) + " limit")
+                                            .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+                                    }
+                                }
+                            }
+                            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: newColorHex).opacity(0.07))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(hex: newColorHex).opacity(0.12), lineWidth: 1))
+
+                            Button("Ekle") { addCategory() }
+                                .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color(hex: newColorHex))
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(Color(hex: newColorHex).opacity(0.12))
                                 .clipShape(RoundedRectangle(cornerRadius: 7))
-                                .frame(width: 100)
+                                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
+                    .padding(18)
 
-                    // İkon seçici
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("İkon").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 6) {
-                                ForEach(categoryIcons, id: \.self) { icon in
-                                    Button { newIcon = icon } label: {
-                                        Image(systemName: icon)
-                                            .font(.system(size: 14))
-                                            .frame(width: 36, height: 36)
-                                            .background(newIcon == icon
-                                                        ? Color(hex: newColorHex).opacity(0.2)
-                                                        : Color(nsColor: .controlBackgroundColor))
-                                            .foregroundStyle(newIcon == icon
-                                                             ? Color(hex: newColorHex)
-                                                             : .secondary)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .stroke(newIcon == icon
-                                                            ? Color(hex: newColorHex).opacity(0.5)
-                                                            : Color.clear, lineWidth: 1.5)
-                                            )
+                    // Mevcut kategoriler
+                    if !categories.isEmpty {
+                        Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
+                        sectionLabel("Mevcut kategoriler", icon: "list.bullet")
+                            .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 6)
+
+                        VStack(spacing: 0) {
+                            ForEach(categories) { cat in
+                                HStack(spacing: 10) {
+                                    ZStack {
+                                        Circle().fill(Color(hex: cat.hexColor).opacity(0.12)).frame(width: 30, height: 30)
+                                        Image(systemName: cat.icon).font(.system(size: 12))
+                                            .foregroundStyle(Color(hex: cat.hexColor))
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(cat.name).font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(TickerTheme.textPrimary)
+                                        if cat.monthlyLimit > 0 {
+                                            Text("Limit: \(CurrencyHelper.format(cat.monthlyLimit))")
+                                                .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("\(cat.entries.count) işlem")
+                                        .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+
+                                    // ✅ Sil butonu — doğrudan, alert ile onay
+                                    Button {
+                                        categoryToDelete = cat
+                                    } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 11)).foregroundStyle(TickerTheme.red)
                                     }
                                     .buttonStyle(.plain)
-                                    .animation(.spring(response: 0.2), value: newIcon)
+                                }
+                                .padding(.horizontal, 18).padding(.vertical, 9)
+
+                                if cat.id != categories.last?.id {
+                                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1).padding(.leading, 18)
                                 }
                             }
                         }
-                    }
-
-                    // Renk seçici
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Renk").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                            Spacer()
-                            // Seçili rengi önizle
-                            HStack(spacing: 6) {
-                                Circle().fill(Color(hex: newColorHex).opacity(0.2)).frame(width: 18, height: 18)
-                                    .overlay(Circle().fill(Color(hex: newColorHex)).frame(width: 10, height: 10))
-                                Text(BudgetColor.palette.first { $0.hex == newColorHex }?.label ?? "")
-                                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                            }
-                        }
-                        BudgetColorPicker(selectedHex: $newColorHex)
-                    }
-
-                    // Önizleme + Ekle butonu
-                    HStack(spacing: 10) {
-                        // Mini önizleme
-                        HStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(hex: newColorHex).opacity(0.15))
-                                    .frame(width: 32, height: 32)
-                                Image(systemName: newIcon)
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(Color(hex: newColorHex))
-                            }
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(newName.isEmpty ? "Kategori adı" : newName)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(newName.isEmpty ? .secondary : .primary)
-                                if let limit = Double(newLimit.replacingOccurrences(of: ",", with: ".")), limit > 0 {
-                                    Text(CurrencyHelper.format(limit) + " limit")
-                                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(hex: newColorHex).opacity(0.07))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color(hex: newColorHex).opacity(0.2), lineWidth: 1)
-                        )
-
-                        Button("Ekle") { addCategory() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color(hex: newColorHex))
-                            .font(.system(size: 13, weight: .medium))
-                            .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .padding(.bottom, 12)
                     }
                 }
-                .padding(16)
-            }
-
-            Divider().opacity(0.4)
-
-            // Mevcut kategoriler
-            if !categories.isEmpty {
-                List {
-                    ForEach(categories) { cat in
-                        HStack(spacing: 10) {
-                            ZStack {
-                                Circle().fill(Color(hex: cat.hexColor).opacity(0.15)).frame(width: 30, height: 30)
-                                Image(systemName: cat.icon).font(.system(size: 13))
-                                    .foregroundStyle(Color(hex: cat.hexColor))
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(cat.name).font(.system(size: 13, weight: .medium))
-                                if cat.monthlyLimit > 0 {
-                                    Text("Limit: \(CurrencyHelper.format(cat.monthlyLimit))")
-                                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Text("\(cat.entries.count) işlem")
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .padding(.vertical, 3)
-                    }
-                    .onDelete { indexSet in
-                        for i in indexSet { context.delete(categories[i]) }
-                        try? context.save()
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .frame(maxHeight: 220)
             }
         }
-        .frame(width: 420, height: 680)
-        .background(GlassView(material: .hudWindow))
+        .frame(width: 420, height: 660)
+        .background(Color(hex: "#161618"))
+        .confirmationDialog(
+            "Kategoriyi sil?",
+            isPresented: Binding(get: { categoryToDelete != nil }, set: { if !$0 { categoryToDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Sil", role: .destructive) {
+                if let cat = categoryToDelete { context.delete(cat); try? context.save() }
+                categoryToDelete = nil
+            }
+            Button("İptal", role: .cancel) { categoryToDelete = nil }
+        } message: {
+            if let cat = categoryToDelete {
+                Text("\"\(cat.name)\" kategorisini ve \(cat.entries.count) kaydı sil?")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionLabel(_ text: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 9))
+            Text(text).font(.system(size: 10, weight: .medium)).kerning(0.3)
+        }
+        .foregroundStyle(TickerTheme.textTertiary).textCase(.uppercase)
     }
 
     private func addCategory() {
@@ -282,6 +282,7 @@ struct BudgetCardManagerView: View {
     @State private var newLastFour = ""
     @State private var newColorHex = BudgetColor.palette[0].hex
     @State private var newIcon = "creditcard"
+    @State private var cardToDelete: BudgetCard? = nil
     @FocusState private var focused: Bool
 
     let cardIcons = ["creditcard", "creditcard.fill", "banknote", "building.columns", "wallet.pass"]
@@ -289,137 +290,173 @@ struct BudgetCardManagerView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Kartlar").font(.system(size: 15, weight: .semibold))
+                Circle().fill(Color(hex: newColorHex)).frame(width: 10, height: 10)
+                Text("Kartlar")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(TickerTheme.textPrimary)
                 Spacer()
                 Button("Kapat") { dismiss() }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .buttonStyle(.plain).font(.system(size: 12)).foregroundStyle(TickerTheme.textTertiary)
             }
-            .padding(.horizontal, 20).padding(.vertical, 14)
+            .padding(.horizontal, 18).padding(.vertical, 14)
 
-            Divider().opacity(0.4)
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
-            VStack(spacing: 14) {
-                // İsim + Son 4 hane
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Kart adı").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        TextField("Örn: Ziraat Visa", text: $newName)
-                            .textFieldStyle(.plain).font(.system(size: 13))
-                            .padding(8).background(Color(nsColor: .controlBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                            .focused($focused)
-                    }
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Son 4 hane").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                        TextField("0000", text: $newLastFour)
-                            .textFieldStyle(.plain).font(.system(size: 13))
-                            .padding(8).background(Color(nsColor: .controlBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                            .frame(width: 80)
-                    }
-                }
-
-                // İkon seçici
-                HStack(spacing: 8) {
-                    ForEach(cardIcons, id: \.self) { icon in
-                        Button { newIcon = icon } label: {
-                            Image(systemName: icon).font(.system(size: 16))
-                                .frame(width: 44, height: 36)
-                                .background(newIcon == icon
-                                            ? Color(hex: newColorHex).opacity(0.2)
-                                            : Color(nsColor: .controlBackgroundColor))
-                                .foregroundStyle(newIcon == icon ? Color(hex: newColorHex) : .secondary)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(RoundedRectangle(cornerRadius: 8)
-                                    .stroke(newIcon == icon ? Color(hex: newColorHex).opacity(0.4) : Color.clear, lineWidth: 1.5))
-                        }
-                        .buttonStyle(.plain).animation(.spring(response: 0.2), value: newIcon)
-                    }
-                }
-
-                // Renk seçici
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Renk").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-                    BudgetColorPicker(selectedHex: $newColorHex)
-                }
-
-                // Önizleme kart + Ekle
-                HStack(spacing: 10) {
-                    // Kart önizleme
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color(hex: newColorHex).opacity(0.15))
-                                .frame(width: 42, height: 28)
-                            Image(systemName: newIcon)
-                                .font(.system(size: 14))
-                                .foregroundStyle(Color(hex: newColorHex))
-                        }
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(newName.isEmpty ? "Kart adı" : newName)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(newName.isEmpty ? .secondary : .primary)
-                            if !newLastFour.isEmpty {
-                                Text("·· \(newLastFour)")
-                                    .font(.system(size: 10)).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(hex: newColorHex).opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color(hex: newColorHex).opacity(0.2), lineWidth: 1))
-
-                    Button("Ekle") { addCard() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color(hex: newColorHex))
-                        .font(.system(size: 13, weight: .medium))
-                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-            .padding(16)
-
-            Divider().opacity(0.4)
-
-            if !cards.isEmpty {
-                List {
-                    ForEach(cards) { card in
+            ScrollView {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Ad + Son 4
                         HStack(spacing: 10) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 5)
-                                    .fill(Color(hex: card.hexColor).opacity(0.15))
-                                    .frame(width: 34, height: 24)
-                                Image(systemName: card.icon).font(.system(size: 12))
-                                    .foregroundStyle(Color(hex: card.hexColor))
+                            VStack(alignment: .leading, spacing: 5) {
+                                sectionLabel("Kart adı", icon: "creditcard")
+                                TextField("Ziraat Visa, Akbank...", text: $newName)
+                                    .textFieldStyle(.plain).font(.system(size: 13))
+                                    .foregroundStyle(TickerTheme.textPrimary).focused($focused)
+                                    .padding(8).background(TickerTheme.bgPill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
                             }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(card.name).font(.system(size: 13, weight: .medium))
-                                if !card.lastFour.isEmpty {
-                                    Text("·· ·· ·· \(card.lastFour)")
-                                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 5) {
+                                sectionLabel("Son 4 hane", icon: "number")
+                                TextField("0000", text: $newLastFour)
+                                    .textFieldStyle(.plain).font(.system(size: 13))
+                                    .foregroundStyle(TickerTheme.textPrimary)
+                                    .padding(8).background(TickerTheme.bgPill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                                    .frame(width: 80)
+                            }
+                        }
+
+                        // İkon
+                        HStack(spacing: 6) {
+                            ForEach(cardIcons, id: \.self) { icon in
+                                Button { newIcon = icon } label: {
+                                    Image(systemName: icon).font(.system(size: 15))
+                                        .frame(width: 44, height: 34)
+                                        .background(newIcon == icon
+                                                    ? Color(hex: newColorHex).opacity(0.15) : TickerTheme.bgPill)
+                                        .foregroundStyle(newIcon == icon ? Color(hex: newColorHex) : TickerTheme.textTertiary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                                        .overlay(RoundedRectangle(cornerRadius: 7)
+                                            .stroke(newIcon == icon ? Color(hex: newColorHex).opacity(0.3) : TickerTheme.borderSub, lineWidth: 1))
+                                }
+                                .buttonStyle(.plain).animation(.spring(response: 0.2), value: newIcon)
+                            }
+                        }
+
+                        // Renk
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionLabel("Renk", icon: "circle.hexagongrid")
+                            BudgetColorPicker(selectedHex: $newColorHex)
+                        }
+
+                        // Önizleme + Ekle
+                        HStack(spacing: 10) {
+                            HStack(spacing: 10) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(Color(hex: newColorHex).opacity(0.12))
+                                        .frame(width: 40, height: 26)
+                                    Image(systemName: newIcon).font(.system(size: 13))
+                                        .foregroundStyle(Color(hex: newColorHex))
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(newName.isEmpty ? "Kart adı" : newName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(newName.isEmpty ? TickerTheme.textTertiary : TickerTheme.textPrimary)
+                                    if !newLastFour.isEmpty {
+                                        Text("·· \(newLastFour)").font(.system(size: 10))
+                                            .foregroundStyle(TickerTheme.textTertiary)
+                                    }
                                 }
                             }
-                            Spacer()
-                            Text("\(card.entries.count) işlem")
-                                .font(.system(size: 11)).foregroundStyle(.secondary)
+                            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(hex: newColorHex).opacity(0.07))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(hex: newColorHex).opacity(0.12), lineWidth: 1))
+
+                            Button("Ekle") { addCard() }
+                                .buttonStyle(.plain).font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color(hex: newColorHex))
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(Color(hex: newColorHex).opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                                .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .padding(.vertical, 3)
                     }
-                    .onDelete { indexSet in
-                        for i in indexSet { context.delete(cards[i]) }
-                        try? context.save()
+                    .padding(18)
+
+                    if !cards.isEmpty {
+                        Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
+                        sectionLabel("Mevcut kartlar", icon: "list.bullet")
+                            .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 6)
+
+                        VStack(spacing: 0) {
+                            ForEach(cards) { card in
+                                HStack(spacing: 10) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .fill(Color(hex: card.hexColor).opacity(0.12))
+                                            .frame(width: 36, height: 24)
+                                        Image(systemName: card.icon).font(.system(size: 11))
+                                            .foregroundStyle(Color(hex: card.hexColor))
+                                    }
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(card.name).font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(TickerTheme.textPrimary)
+                                        if !card.lastFour.isEmpty {
+                                            Text("·· \(card.lastFour)").font(.system(size: 10))
+                                                .foregroundStyle(TickerTheme.textTertiary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("\(card.entries.count) işlem")
+                                        .font(.system(size: 10)).foregroundStyle(TickerTheme.textTertiary)
+
+                                    // ✅ Sil butonu
+                                    Button { cardToDelete = card } label: {
+                                        Image(systemName: "trash")
+                                            .font(.system(size: 11)).foregroundStyle(TickerTheme.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 18).padding(.vertical, 9)
+
+                                if card.id != cards.last?.id {
+                                    Rectangle().fill(TickerTheme.borderSub).frame(height: 1).padding(.leading, 18)
+                                }
+                            }
+                        }
+                        .padding(.bottom, 12)
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .frame(maxHeight: 180)
             }
         }
-        .frame(width: 400, height: 620)
-        .background(GlassView(material: .hudWindow))
+        .frame(width: 400, height: 600)
+        .background(Color(hex: "#161618"))
+        .confirmationDialog(
+            "Kartı sil?",
+            isPresented: Binding(get: { cardToDelete != nil }, set: { if !$0 { cardToDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Sil", role: .destructive) {
+                if let card = cardToDelete { context.delete(card); try? context.save() }
+                cardToDelete = nil
+            }
+            Button("İptal", role: .cancel) { cardToDelete = nil }
+        } message: {
+            if let card = cardToDelete {
+                Text("\"\(card.name)\" kartını ve \(card.entries.count) kaydı sil?")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionLabel(_ text: String, icon: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 9))
+            Text(text).font(.system(size: 10, weight: .medium)).kerning(0.3)
+        }
+        .foregroundStyle(TickerTheme.textTertiary).textCase(.uppercase)
     }
 
     private func addCard() {

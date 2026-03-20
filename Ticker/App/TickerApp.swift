@@ -19,7 +19,6 @@ struct TickerApp: App {
             ReadingSession.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
@@ -39,9 +38,12 @@ struct TickerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appState)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(.dark)       // Her zaman dark
+                .background(TickerTheme.bgApp)     // Pencere arka planı
                 .onAppear {
                     NotificationManager.shared.requestAuthorization()
+                    // Pencere arka plan rengini ayarla
+                    NSApp.appearance = NSAppearance(named: .darkAqua)
                 }
         }
         .windowStyle(.hiddenTitleBar)
