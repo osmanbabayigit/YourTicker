@@ -9,6 +9,7 @@ struct DayCell: View {
     var onTaskDropped: (UUID, Date) -> Void
 
     @State private var isDropTargeted = false
+    @State private var editingTask: TaskItem? = nil
 
     private var dayNumber: String {
         "\(Calendar.current.component(.day, from: date))"
@@ -16,7 +17,7 @@ struct DayCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            // Day number
+            // Gün numarası
             HStack {
                 ZStack {
                     if isToday {
@@ -37,7 +38,7 @@ struct DayCell: View {
                 Spacer()
             }
 
-            // Tasks
+            // Görevler
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(tasks.prefix(3)) { task in
                     HStack(spacing: 4) {
@@ -54,6 +55,7 @@ struct DayCell: View {
                     .background(Color(hex: task.hexColor).opacity(0.18))
                     .foregroundStyle(Color(hex: task.hexColor))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .onTapGesture { editingTask = task }         // ← tıklayınca edit aç
                     .onDrag {
                         NSItemProvider(object: task.id.uuidString as NSString)
                     }
@@ -91,11 +93,15 @@ struct DayCell: View {
         .onDrop(of: [.text], isTargeted: $isDropTargeted) { providers in
             guard let provider = providers.first else { return false }
             provider.loadObject(ofClass: NSString.self) { string, _ in
-                if let uuidString = string as? String, let taskId = UUID(uuidString: uuidString) {
+                if let uuidString = string as? String,
+                   let taskId = UUID(uuidString: uuidString) {
                     DispatchQueue.main.async { onTaskDropped(taskId, date) }
                 }
             }
             return true
+        }
+        .sheet(item: $editingTask) { task in
+            EditTaskView(task: task)
         }
     }
 }

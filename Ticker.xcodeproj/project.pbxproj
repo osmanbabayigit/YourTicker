@@ -10,9 +10,22 @@
 		AC84066A2F695B070007CE00 /* Ticker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ticker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		ACA3BF2D2F6C7DC800B3ED6A /* Exceptions for "Ticker" folder in "Ticker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = AC8406692F695B070007CE00 /* Ticker */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		AC84066C2F695B070007CE00 /* Ticker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				ACA3BF2D2F6C7DC800B3ED6A /* Exceptions for "Ticker" folder in "Ticker" target */,
+			);
 			path = Ticker;
 			sourceTree = "<group>";
 		};
@@ -255,6 +268,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Ticker/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -285,6 +299,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Ticker/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
