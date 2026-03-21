@@ -21,32 +21,32 @@ struct CalendarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Mod seçici
+            // Mod toggle — sağ üst
             HStack {
                 Spacer()
-                HStack(spacing: 2) {
+                HStack(spacing: 1) {
                     ForEach(CalendarMode.allCases, id: \.self) { m in
                         Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 mode = m
                             }
                         } label: {
                             HStack(spacing: 5) {
-                                Image(systemName: m.icon).font(.system(size: 11))
-                                Text(m.rawValue).font(.system(size: 12, weight: .medium))
+                                Image(systemName: m.icon).font(.system(size: 10))
+                                Text(m.rawValue).font(.system(size: 11, weight: .medium))
                             }
-                            .padding(.horizontal, 10).padding(.vertical, 5)
-                            .background(mode == m ? Color.blue : Color.clear)
-                            .foregroundStyle(mode == m ? .white : .secondary)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .padding(.horizontal, 9).padding(.vertical, 5)
+                            .background(mode == m ? TickerTheme.blue : Color.clear)
+                            .foregroundStyle(mode == m ? .white : TickerTheme.textTertiary)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(3)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 9))
-                .padding(.trailing, 16)
+                .padding(2)
+                .background(TickerTheme.bgPill)
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+                .padding(.trailing, 14)
                 .padding(.top, 10)
             }
 
@@ -63,17 +63,18 @@ struct CalendarView: View {
                     }
                     .transition(.asymmetric(
                         insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
+                        removal:   .move(edge: .trailing).combined(with: .opacity)
                     ))
                 } else {
                     WeekView(selectedDate: $selectedDate, tasks: tasks)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
+                            removal:   .move(edge: .leading).combined(with: .opacity)
                         ))
                 }
             }
         }
+        .background(TickerTheme.bgApp)
         .sheet(isPresented: $showingFocusDay) {
             FocusDayView(date: selectedDate, tasks: tasks)
         }

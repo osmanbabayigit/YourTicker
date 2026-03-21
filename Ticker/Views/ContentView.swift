@@ -3,79 +3,86 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selection: SidebarItem = .pending
+
+    private var selectionIsTag: Bool {
+        if case .tag = selection { return true }
+        return false
+    }
     @EnvironmentObject var appState: AppState
     @Query(sort: \TagItem.name) private var tags: [TagItem]
     @Query private var tasks: [TaskItem]
 
-    private var pendingCount:  Int { tasks.filter { !$0.isCompleted }.count }
+    private var pendingCount:   Int { tasks.filter { !$0.isCompleted }.count }
     private var completedCount: Int { tasks.filter { $0.isCompleted }.count }
     private var overdueCount: Int {
         let today = Calendar.current.startOfDay(for: Date())
         return tasks.filter { !$0.isCompleted && ($0.dueDate.map { $0 < today } ?? false) }.count
     }
+    private var todayCount: Int {
+        tasks.filter {
+            !$0.isCompleted && ($0.dueDate.map { Calendar.current.isDateInToday($0) } ?? false)
+        }.count
+    }
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             sidebar
-        } detail: {
+            Rectangle().fill(TickerTheme.borderSub).frame(width: 1)
             detailView
         }
-        .frame(minWidth: 980, minHeight: 660)
-        // Tüm arka planı koyu yap
+        .frame(minWidth: 900, minHeight: 600)
         .background(TickerTheme.bgApp)
+        .sheet(isPresented: $appState.showingQuickCapture) {
+            QuickCaptureView()
+        }
     }
 
     // MARK: - Sidebar
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            sidebarHeader
-            Divider().background(TickerTheme.borderSub)
+            appHeader
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-
-                    // Ana navigasyon
-                    sidebarGroup {
-                        navRow(item: .pending,
-                               count: pendingCount > 0 ? "\(pendingCount)" : nil,
-                               badge: overdueCount > 0 ? "\(overdueCount)" : nil)
-                        navRow(item: .calendar)
-                        navRow(item: .completed,
-                               count: completedCount > 0 ? "\(completedCount)" : nil)
-                    }
-
-                    sidebarDivider
+            ScrollView {
+                VStack(spacing: 2) {
+                    // Ana
+                    navRow(.pending, count: pendingCount > 0 ? "\(pendingCount)" : nil,
+                           badge: overdueCount > 0 ? "\(overdueCount)" : nil)
+                    navRow(.calendar)
+                    navRow(.completed, count: completedCount > 0 ? "\(completedCount)" : nil)
 
                     // Modüller
-                    sidebarGroup(label: "MODÜLLER") {
-                        navRow(item: .budget)
-                        navRow(item: .books)
-                    }
+                    sectionHeader("MODÜLLER").padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
+                    navRow(.budget)
+                    navRow(.books)
+                    navRow(.pomodoro)
+                    navRow(.goals)
+                    navRow(.habits)
+                    navRow(.stats)
+                    navRow(.notes)
 
                     // Etiketler
                     if !tags.isEmpty {
-                        sidebarDivider
-                        sidebarGroup(label: "ETİKETLER") {
-                            ForEach(tags) { tag in
-                                tagNavRow(tag)
-                            }
-                        }
+                        sectionHeader("ETİKETLER").padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
+                        ForEach(tags) { tag in tagRow(tag) }
                     }
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 8).padding(.horizontal, 6)
             }
+            .scrollContentBackground(.hidden)
+            .background(TickerTheme.bgSidebar)
 
             Spacer(minLength: 0)
             sidebarFooter
         }
-        .frame(minWidth: 210)
+        .frame(width: 200)
         .background(TickerTheme.bgSidebar)
     }
 
-    // MARK: - Sidebar header
+    // MARK: - App Header
 
-    private var sidebarHeader: some View {
+    private var appHeader: some View {
         HStack(spacing: 9) {
             ZStack {
                 RoundedRectangle(cornerRadius: 7)
@@ -92,123 +99,93 @@ struct ContentView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 16)
-        .padding(.bottom, 12)
+        .padding(.bottom, 11)
+        .background(TickerTheme.bgSidebar)
     }
 
     // MARK: - Nav row
 
     @ViewBuilder
-    private func navRow(item: SidebarItem,
+    private func navRow(_ item: SidebarItem,
                         count: String? = nil,
                         badge: String? = nil) -> some View {
-        let isSelected = selection == item
-        HStack(spacing: 9) {
-            sidebarIcon(item.icon, selected: isSelected)
+        Button { selection = item } label: {
+            HStack(spacing: 8) {
+                Image(systemName: item.icon)
+                    .font(.system(size: 12))
+                    .frame(width: 16)
+                    .foregroundStyle(selection == item ? TickerTheme.blue : TickerTheme.textTertiary)
 
-            Text(item.label)
-                .font(.system(size: 12.5))
-                .foregroundStyle(isSelected ? TickerTheme.textPrimary : TickerTheme.textSecondary)
+                Text(item.label)
+                    .font(.system(size: 13))
+                    .foregroundStyle(selection == item ? TickerTheme.textPrimary : TickerTheme.textSecondary)
 
-            Spacer()
+                Spacer()
 
-            if let badge {
-                Text(badge)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5).padding(.vertical, 1.5)
-                    .background(Color(hex: "#E24B4A"))
-                    .clipShape(Capsule())
-            } else if let count {
-                Text(count)
-                    .font(.system(size: 11))
-                    .foregroundStyle(TickerTheme.textTertiary)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 1.5)
+                        .background(TickerTheme.red)
+                        .clipShape(Capsule())
+                } else if let count {
+                    Text(count)
+                        .font(.system(size: 11))
+                        .foregroundStyle(TickerTheme.textTertiary)
+                }
             }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(selection == item ? Color.white.opacity(0.07) : Color.clear)
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected
-                      ? Color.white.opacity(0.07)
-                      : Color.clear)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { selection = item }
-        .tag(item)
-        .padding(.horizontal, 6)
+        .buttonStyle(.plain)
     }
 
-    // MARK: - Tag nav row
+    // MARK: - Tag row
 
     @ViewBuilder
-    private func tagNavRow(_ tag: TagItem) -> some View {
-        let isSelected = selection == SidebarItem.tag(tag)
-        let count = tag.tasks.filter { !$0.isCompleted }.count
-
-        HStack(spacing: 9) {
-            Circle()
-                .fill(Color(hex: tag.hexColor))
-                .frame(width: 7, height: 7)
-                .padding(.leading, 4)
-
-            Text(tag.name)
-                .font(.system(size: 12.5))
-                .foregroundStyle(isSelected ? TickerTheme.textPrimary : TickerTheme.textSecondary)
-
-            Spacer()
-
-            if count > 0 {
-                Text("\(count)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(TickerTheme.textTertiary)
+    private func tagRow(_ tag: TagItem) -> some View {
+        Button { selection = .tag(tag) } label: {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: tag.hexColor))
+                    .frame(width: 7, height: 7)
+                    .padding(.leading, 3)
+                Text(tag.name)
+                    .font(.system(size: 13))
+                    .foregroundStyle(selection == SidebarItem.tag(tag)
+                                     ? TickerTheme.textPrimary : TickerTheme.textSecondary)
+                Spacer()
+                let count = tag.tasks.filter { !$0.isCompleted }.count
+                if count > 0 {
+                    Text("\(count)").font(.system(size: 11)).foregroundStyle(TickerTheme.textTertiary)
+                }
             }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(selection == SidebarItem.tag(tag) ? Color.white.opacity(0.07) : Color.clear)
+            )
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isSelected ? Color.white.opacity(0.07) : Color.clear)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { selection = .tag(tag) }
-        .padding(.horizontal, 6)
+        .buttonStyle(.plain)
     }
 
-    // MARK: - Sidebar icon
+    // MARK: - Section header
 
     @ViewBuilder
-    private func sidebarIcon(_ name: String, selected: Bool) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 12, weight: .regular))
-            .foregroundStyle(selected ? TickerTheme.textPrimary : TickerTheme.textTertiary)
-            .frame(width: 16, height: 16)
-    }
-
-    // MARK: - Sidebar group
-
-    @ViewBuilder
-    private func sidebarGroup<Content: View>(label: String? = nil,
-                                              @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            if let label {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(TickerTheme.textTertiary)
-                    .kerning(0.5)
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
-                    .padding(.bottom, 2)
-            }
-            content()
-        }
-    }
-
-    private var sidebarDivider: some View {
-        Rectangle()
-            .fill(TickerTheme.borderSub)
-            .frame(height: 1)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 4)
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(TickerTheme.textTertiary)
+            .kerning(0.5)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Footer
@@ -219,13 +196,13 @@ struct ContentView: View {
                 .fill(TickerTheme.borderSub)
                 .frame(height: 1)
 
-            HStack(spacing: 9) {
+            HStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .fill(TickerTheme.blue.opacity(0.2))
-                        .frame(width: 26, height: 26)
+                        .fill(TickerTheme.blue.opacity(0.15))
+                        .frame(width: 24, height: 24)
                     Text("OB")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(TickerTheme.blue)
                 }
 
@@ -233,7 +210,7 @@ struct ContentView: View {
                     Text("Osman Babayiğit")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(TickerTheme.textSecondary)
-                    Text("\(pendingCount) görev bekliyor")
+                    Text(todayCount > 0 ? "\(todayCount) görev bugün" : "Temiz gün 🎉")
                         .font(.system(size: 10))
                         .foregroundStyle(TickerTheme.textTertiary)
                 }
@@ -249,6 +226,7 @@ struct ContentView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .background(TickerTheme.bgSidebar)
         }
     }
 
@@ -256,7 +234,8 @@ struct ContentView: View {
 
     private var detailView: some View {
         VStack(spacing: 0) {
-            if selection != .calendar && selection != .budget && selection != .books {
+            // Arama çubuğu sadece görev ekranlarında
+            if selection == .pending || selection == .completed || selectionIsTag {
                 GlobalSearchBar()
                 Rectangle()
                     .fill(TickerTheme.borderSub)
@@ -275,6 +254,16 @@ struct ContentView: View {
                     BudgetView()
                 case .books:
                     BookView()
+                case .pomodoro:
+                    PomodoroView()
+                case .goals:
+                    GoalView()
+                case .habits:
+                    HabitView()
+                case .stats:
+                    StatsView()
+                case .notes:
+                    NoteView()
                 case .tag(let tag):
                     TaskListView(showCompleted: false, title: tag.name, filterTag: tag)
                 }

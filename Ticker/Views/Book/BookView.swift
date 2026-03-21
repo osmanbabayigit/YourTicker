@@ -131,7 +131,7 @@ struct BookView: View {
             }
             .buttonStyle(.plain)
         }
-        .background(TickerTheme.bgSidebar)
+        .background(TickerTheme.bgApp)
     }
 
     // MARK: - Streak kartı
@@ -236,6 +236,8 @@ struct BookView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .fill(isSelected ? Color.white.opacity(0.07) : Color.clear)

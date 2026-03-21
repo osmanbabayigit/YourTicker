@@ -1,7 +1,8 @@
 import SwiftUI
+import AppKit
 
 struct GlassView: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .underWindowBackground
+    var material: NSVisualEffectView.Material = .hudWindow
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let v = NSVisualEffectView()
@@ -12,22 +13,7 @@ struct GlassView: NSViewRepresentable {
         return v
     }
 
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-    }
-}
-
-// MARK: - Sheet background helper
-
-struct DarkSheetBackground: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(Color(hex: "#161618"))
-    }
-}
-
-extension View {
-    func darkSheet() -> some View {
-        modifier(DarkSheetBackground())
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {
+        v.material = material
     }
 }
