@@ -20,7 +20,6 @@ struct TickerApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [config])
         } catch {
-            print("⚠️ Kalıcı store yüklenemedi, geçici bellek moduna geçiliyor: \(error)")
             let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
             do { return try ModelContainer(for: schema, configurations: [fallback]) }
             catch { fatalError("ModelContainer oluşturulamadı: \(error)") }
@@ -32,7 +31,6 @@ struct TickerApp: App {
             ContentView()
                 .environmentObject(appState)
                 .preferredColorScheme(.dark)
-                .background(TickerTheme.bgApp)
                 .onAppear {
                     NotificationManager.shared.requestAuthorization()
                     NSApp.appearance = NSAppearance(named: .darkAqua)
@@ -54,7 +52,7 @@ struct TickerApp: App {
             guard let window = NSApp.windows.first else { return }
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            window.backgroundColor = NSColor(calibratedRed: 0.067, green: 0.067, blue: 0.075, alpha: 1.0)
+            window.backgroundColor = NSColor(calibratedRed: 0.047, green: 0.047, blue: 0.055, alpha: 1)
             window.styleMask.insert(.fullSizeContentView)
         }
     }

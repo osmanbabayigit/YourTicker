@@ -7,12 +7,9 @@ struct ContentView: View {
     @Query(sort: \TagItem.name) private var tags: [TagItem]
     @Query private var tasks: [TaskItem]
 
-    private var selectionIsTag: Bool {
-        if case .tag = selection { return true }
-        return false
-    }
+    // Computed properties — performanslı, sadece tasks değişince yeniden hesaplanır
     private var pendingCount:   Int { tasks.filter { !$0.isCompleted }.count }
-    private var completedCount: Int { tasks.filter { $0.isCompleted }.count }
+    private var completedCount: Int { tasks.filter {  $0.isCompleted }.count }
     private var overdueCount: Int {
         let today = Calendar.current.startOfDay(for: Date())
         return tasks.filter { !$0.isCompleted && ($0.dueDate.map { $0 < today } ?? false) }.count
@@ -26,36 +23,112 @@ struct ContentView: View {
     var body: some View {
         HStack(spacing: 0) {
             if appState.sidebarVisible {
-                sidebar.transition(.move(edge: .leading).combined(with: .opacity))
+                sidebar
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             } else {
-                collapsedStrip.transition(.move(edge: .leading).combined(with: .opacity))
+                collapsedStrip
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
             Rectangle().fill(TickerTheme.borderSub).frame(width: 1)
             detailView
         }
-        // Sadece arka planı safe area'nın dışına taşı.
-        // Layout safe area'ya uysun → fullscreen'de boşluk kalmaz.
-        .background(TickerTheme.bgApp.ignoresSafeArea())
         .frame(minWidth: 700, minHeight: 600)
+        // FIX: ignoresSafeArea sadece renk bloğuna, HStack'e değil
+        // FIX: hidden Button pattern kaldırıldı → AppState.init() içinde NSEvent ile yapılıyor
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: appState.sidebarVisible)
         .sheet(isPresented: $appState.showingQuickCapture) { QuickCaptureView() }
-        .background(
-            Button("") { toggleSidebar() }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-                .hidden()
-        )
     }
 
-    private func toggleSidebar() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-            appState.sidebarVisible.toggle()
+    // MARK: - Sidebar
+
+    private var sidebar: some View {
+        VStack(spacing: 0) {
+            appHeader
+            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
+            ScrollView {
+                VStack(spacing: 2) {
+                    navRow(.pending,
+                           count: pendingCount   > 0 ? "\(pendingCount)"   : nil,
+                           badge: overdueCount   > 0 ? "\(overdueCount)"   : nil)
+                    navRow(.calendar)
+                    navRow(.completed, count: completedCount > 0 ? "\(completedCount)" : nil)
+
+                    sectionHeader("MODÜLLER")
+                        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
+                    navRow(.budget);  navRow(.books);   navRow(.pomodoro)
+                    navRow(.goals);   navRow(.habits);  navRow(.stats); navRow(.notes)
+
+                    if !tags.isEmpty {
+                        sectionHeader("ETİKETLER")
+                            .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
+                        ForEach(tags) { tag in tagRow(tag) }
+                    }
+                }
+                .padding(.vertical, 8).padding(.horizontal, 6)
+            }
+            .scrollContentBackground(.hidden)
+            .background(TickerTheme.bgSidebar)
+            Spacer(minLength: 0)
+            sidebarFooter
         }
+        .frame(width: 200)
+        // ignoresSafeArea sadece bu view'ın background'una — döngü yok
+        .background(TickerTheme.bgSidebar.ignoresSafeArea(edges: .top))
+    }
+
+    // MARK: - App Header
+
+    private var appHeader: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: 76)
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(TickerTheme.blue)
+                    .frame(width: 18, height: 18)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white)
+            }
+            Text("Ticker")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(TickerTheme.textPrimary)
+                .padding(.leading, 7)
+                .lineLimit(1)
+            Spacer()
+            sidebarToggleButton(chevron: "chevron.left")
+                .padding(.trailing, 12)
+        }
+        .frame(height: 44)
+        .background(TickerTheme.bgSidebar)
+    }
+
+    // MARK: - Daraltılmış şerit
+
+    private var collapsedStrip: some View {
+        VStack(spacing: 8) {
+            Spacer().frame(height: 36)
+            sidebarToggleButton(chevron: "chevron.right")
+            Image(systemName: selection.icon)
+                .font(.system(size: 13))
+                .foregroundStyle(TickerTheme.blue)
+                .frame(width: 28, height: 28)
+                .background(TickerTheme.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            Spacer()
+            VStack(spacing: 4) {
+                miniNavButton(.pending, badge: overdueCount > 0 ? "\(overdueCount)" : nil)
+                miniNavButton(.calendar)
+                miniNavButton(.pomodoro)
+                miniNavButton(.notes)
+            }
+            .padding(.bottom, 12)
+        }
+        .padding(.horizontal, 6)
+        .frame(width: 44)
+        .background(TickerTheme.bgSidebar.ignoresSafeArea(edges: .top))
     }
 
     // MARK: - Detail view
-    // Spacer yok — SwiftUI safe area zaten doğru yeri hesaplıyor.
-    // Fullscreen: safe area = 0, içerik üstten başlar.
-    // Normal pencere: safe area = titlebar yüksekliği, içerik onun altından başlar.
 
     private var detailView: some View {
         Group {
@@ -74,99 +147,24 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(TickerTheme.bgApp.ignoresSafeArea())
+        .background(TickerTheme.bgApp.ignoresSafeArea(edges: .top))
     }
 
-    // MARK: - Sidebar
-    // Arka plan safe area'yı ignore eder → trafik ışıkları arkasındaki koyu renk dolar.
-    // İçerik (navRow'lar) ise safe area'ya uyar → trafik ışıklarının altından başlar.
-
-    private var sidebar: some View {
-        VStack(spacing: 0) {
-            appHeader
-            Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
-            ScrollView {
-                VStack(spacing: 2) {
-                    navRow(.pending,   count: pendingCount   > 0 ? "\(pendingCount)"   : nil,
-                                       badge: overdueCount   > 0 ? "\(overdueCount)"   : nil)
-                    navRow(.calendar)
-                    navRow(.completed, count: completedCount > 0 ? "\(completedCount)" : nil)
-                    sectionHeader("MODÜLLER")
-                        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
-                    navRow(.budget);  navRow(.books);  navRow(.pomodoro)
-                    navRow(.goals);   navRow(.habits); navRow(.stats); navRow(.notes)
-                    if !tags.isEmpty {
-                        sectionHeader("ETİKETLER")
-                            .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 2)
-                        ForEach(tags) { tag in tagRow(tag) }
-                    }
-                }
-                .padding(.vertical, 8).padding(.horizontal, 6)
-            }
-            .scrollContentBackground(.hidden)
-            Spacer(minLength: 0)
-            sidebarFooter
-        }
-        .frame(width: 200)
-        .background(TickerTheme.bgSidebar.ignoresSafeArea())
-    }
-
-    // MARK: - App Header
-    // Manuel spacer yok. Safe area padding'i SwiftUI otomatik ekliyor.
-
-    private var appHeader: some View {
-        HStack(spacing: 9) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7).fill(TickerTheme.blue).frame(width: 22, height: 22)
-                Image(systemName: "checkmark").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
-            }
-            Text("Ticker")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(TickerTheme.textPrimary)
-                .lineLimit(1)
-            Spacer()
-            sidebarToggleButton(chevron: "chevron.left")
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-    }
-
-    // MARK: - Daraltılmış şerit
-
-    private var collapsedStrip: some View {
-        VStack(spacing: 10) {
-            sidebarToggleButton(chevron: "chevron.right")
-                .padding(.top, 4)
-            Image(systemName: selection.icon)
-                .font(.system(size: 13)).foregroundStyle(TickerTheme.blue)
-                .frame(width: 28, height: 28)
-                .background(TickerTheme.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-            Spacer()
-            VStack(spacing: 4) {
-                miniNavButton(.pending, badge: overdueCount > 0 ? "\(overdueCount)" : nil)
-                miniNavButton(.calendar)
-                miniNavButton(.pomodoro)
-                miniNavButton(.notes)
-            }
-            .padding(.bottom, 12)
-        }
-        .padding(.horizontal, 6)
-        .frame(width: 44)
-        .background(TickerTheme.bgSidebar.ignoresSafeArea())
-    }
+    // MARK: - Yardımcılar
 
     @ViewBuilder
     private func miniNavButton(_ item: SidebarItem, badge: String? = nil) -> some View {
         Button { selection = item } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: item.icon).font(.system(size: 13))
+                Image(systemName: item.icon)
+                    .font(.system(size: 13))
                     .foregroundStyle(selection == item ? TickerTheme.blue : TickerTheme.textTertiary)
                     .frame(width: 32, height: 32)
                     .background(selection == item ? TickerTheme.blue.opacity(0.1) : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 7))
                 if let badge {
-                    Text(badge).font(.system(size: 7, weight: .heavy)).foregroundStyle(.white)
+                    Text(badge)
+                        .font(.system(size: 7, weight: .heavy)).foregroundStyle(.white)
                         .padding(.horizontal, 3).padding(.vertical, 1)
                         .background(TickerTheme.red).clipShape(Capsule())
                         .offset(x: 4, y: -4)
@@ -178,22 +176,29 @@ struct ContentView: View {
 
     @ViewBuilder
     private func sidebarToggleButton(chevron: String) -> some View {
-        Button { toggleSidebar() } label: {
-            Image(systemName: chevron).font(.system(size: 10, weight: .medium))
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                appState.sidebarVisible.toggle()
+            }
+        } label: {
+            Image(systemName: chevron)
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(TickerTheme.textTertiary)
                 .frame(width: 24, height: 24)
                 .background(TickerTheme.bgPill)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(TickerTheme.borderSub, lineWidth: 1))
         }
-        .buttonStyle(.plain).help("Kenar çubuğunu gizle/göster (⌘⇧S)")
+        .buttonStyle(.plain)
+        .help("Kenar çubuğunu gizle/göster (⌘⇧S)")
     }
 
     @ViewBuilder
     private func navRow(_ item: SidebarItem, count: String? = nil, badge: String? = nil) -> some View {
         Button { selection = item } label: {
             HStack(spacing: 8) {
-                Image(systemName: item.icon).font(.system(size: 12)).frame(width: 16)
+                Image(systemName: item.icon)
+                    .font(.system(size: 12)).frame(width: 16)
                     .foregroundStyle(selection == item ? TickerTheme.blue : TickerTheme.textTertiary)
                 Text(item.label).font(.system(size: 13))
                     .foregroundStyle(selection == item ? TickerTheme.textPrimary : TickerTheme.textSecondary)
@@ -236,7 +241,8 @@ struct ContentView: View {
 
     @ViewBuilder
     private func sectionHeader(_ text: String) -> some View {
-        Text(text).font(.system(size: 9, weight: .semibold)).foregroundStyle(TickerTheme.textTertiary)
+        Text(text)
+            .font(.system(size: 9, weight: .semibold)).foregroundStyle(TickerTheme.textTertiary)
             .kerning(0.5).frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -245,8 +251,8 @@ struct ContentView: View {
             Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
             HStack(spacing: 8) {
                 ZStack {
-                    Circle().fill(TickerTheme.blue.opacity(0.15)).frame(width: 24, height: 24)
-                    Text("OB").font(.system(size: 8, weight: .semibold)).foregroundStyle(TickerTheme.blue)
+                    Circle().fill(TickerTheme.blue.opacity(0.15)).frame(width: 28, height: 28)
+                    Text("OB").font(.system(size: 9, weight: .semibold)).foregroundStyle(TickerTheme.blue)
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Osman Babayiğit")
@@ -256,11 +262,13 @@ struct ContentView: View {
                 }
                 Spacer()
                 Button { } label: {
-                    Image(systemName: "gearshape").font(.system(size: 12)).foregroundStyle(TickerTheme.textTertiary)
+                    Image(systemName: "gearshape").font(.system(size: 12))
+                        .foregroundStyle(TickerTheme.textTertiary)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(TickerTheme.bgSidebar)
         }
     }
 }
