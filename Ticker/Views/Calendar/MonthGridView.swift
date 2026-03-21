@@ -10,9 +10,9 @@ struct MonthGridView: View {
     @State private var showingAddTask = false
     @State private var slideDirection: Edge = .trailing
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
     private let weekdays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
 
+    // Takvim günleri — Pazartesi başlangıçlı
     private var days: [Date] {
         let cal = Calendar.current
         var comps = cal.dateComponents([.year, .month], from: selectedDate)
@@ -23,7 +23,7 @@ struct MonthGridView: View {
 
         var dates: [Date] = []
         for i in (0..<firstWeekday).reversed() {
-            if let d = cal.date(byAdding: .day, value: -(i+1), to: start) { dates.append(d) }
+            if let d = cal.date(byAdding: .day, value: -(i + 1), to: start) { dates.append(d) }
         }
         for i in 0..<totalDays {
             if let d = cal.date(byAdding: .day, value: i, to: start) { dates.append(d) }
@@ -37,8 +37,16 @@ struct MonthGridView: View {
         return dates
     }
 
+    // Günleri haftalara böl
+    private var weeks: [[Date]] {
+        stride(from: 0, to: days.count, by: 7).map {
+            Array(days[$0..<min($0 + 7, days.count)])
+        }
+    }
+
     var body: some View {
         HSplitView {
+            // Sol: Takvim grid
             VStack(spacing: 0) {
                 topBar
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
@@ -46,12 +54,15 @@ struct MonthGridView: View {
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
                 calendarGrid
             }
-            .frame(minWidth: 480)
+            // FIX: maxHeight: .infinity → VStack tüm yüksekliği alır
+            .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
             .background(TickerTheme.bgApp)
 
+            // Sağ: Günlük ajanda
             AgendaView(date: selectedDate, tasks: tasks)
                 .frame(minWidth: 200, maxWidth: 260)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingAddTask) { AddTaskView(selectedDate: selectedDate) }
     }
 
@@ -70,7 +81,6 @@ struct MonthGridView: View {
 
             Spacer()
 
-            // Bugün butonu
             Button {
                 withAnimation(.spring(response: 0.35)) { selectedDate = Date() }
             } label: {
@@ -83,7 +93,6 @@ struct MonthGridView: View {
             }
             .buttonStyle(.plain)
 
-            // Nav okları
             HStack(spacing: 0) {
                 Button {
                     slideDirection = .trailing
@@ -113,7 +122,6 @@ struct MonthGridView: View {
             .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(RoundedRectangle(cornerRadius: 7).stroke(TickerTheme.borderMid, lineWidth: 1))
 
-            // Görev ekle
             Button { showingAddTask = true } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "plus").font(.system(size: 10))
@@ -145,35 +153,45 @@ struct MonthGridView: View {
     }
 
     // MARK: - Calendar grid
+    //
+    // FIX: Eski kod GeometryReader + LazyVGrid kullanıyordu.
+    // GeometryReader parent yüksekliği belirsizken geo.size.height = 0 döndürüyordu
+    // → tüm satırlar 0px yüksekliğinde kalıyordu.
+    //
+    // Yeni yaklaşım: VStack + HStack ile frame(maxHeight: .infinity).
+    // SwiftUI eşit yüksekliği tüm .infinity satırlara otomatik dağıtır.
 
     private var calendarGrid: some View {
-        GeometryReader { geo in
-            let rowCount = days.count / 7
-            let rowH = geo.size.height / CGFloat(rowCount)
-
-            LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(days, id: \.self) { day in
-                    DayCell(
-                        date: day,
-                        isSelected: Calendar.current.isDate(day, inSameDayAs: selectedDate),
-                        isToday:    Calendar.current.isDateInToday(day),
-                        tasks:      tasksFor(day),
-                        isCurrentMonth: Calendar.current.isDate(day, equalTo: selectedDate, toGranularity: .month),
-                        onTaskDropped: onTaskDropped,
-                        onFocusDay: onFocusDay
-                    )
-                    .frame(height: rowH)
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.2)) { selectedDate = day }
+        VStack(spacing: 0) {
+            ForEach(Array(weeks.enumerated()), id: \.offset) { weekIdx, week in
+                HStack(spacing: 0) {
+                    ForEach(week, id: \.self) { day in
+                        DayCell(
+                            date: day,
+                            isSelected: Calendar.current.isDate(day, inSameDayAs: selectedDate),
+                            isToday:    Calendar.current.isDateInToday(day),
+                            tasks:      tasksFor(day),
+                            isCurrentMonth: Calendar.current.isDate(
+                                day, equalTo: selectedDate, toGranularity: .month
+                            ),
+                            onTaskDropped: onTaskDropped,
+                            onFocusDay: onFocusDay
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.2)) { selectedDate = day }
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .id(selectedDate.formatted(.dateTime.month().year()))
-            .transition(.asymmetric(
-                insertion: .move(edge: slideDirection).combined(with: .opacity),
-                removal: .move(edge: slideDirection == .leading ? .trailing : .leading).combined(with: .opacity)
-            ))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .id(selectedDate.formatted(.dateTime.month().year()))
+        .transition(.asymmetric(
+            insertion: .move(edge: slideDirection).combined(with: .opacity),
+            removal:   .move(edge: slideDirection == .leading ? .trailing : .leading).combined(with: .opacity)
+        ))
     }
 
     private func tasksFor(_ date: Date) -> [TaskItem] {

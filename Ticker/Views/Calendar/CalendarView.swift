@@ -20,36 +20,8 @@ struct CalendarView: View {
     @State private var showingFocusDay = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Mod toggle — sağ üst
-            HStack {
-                Spacer()
-                HStack(spacing: 1) {
-                    ForEach(CalendarMode.allCases, id: \.self) { m in
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                mode = m
-                            }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: m.icon).font(.system(size: 10))
-                                Text(m.rawValue).font(.system(size: 11, weight: .medium))
-                            }
-                            .padding(.horizontal, 9).padding(.vertical, 5)
-                            .background(mode == m ? TickerTheme.blue : Color.clear)
-                            .foregroundStyle(mode == m ? .white : TickerTheme.textTertiary)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(2)
-                .background(TickerTheme.bgPill)
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-                .padding(.trailing, 14)
-                .padding(.top, 10)
-            }
-
+        ZStack(alignment: .topTrailing) {
+            // Ana içerik — tam ekran
             Group {
                 if mode == .month {
                     MonthGridView(
@@ -73,10 +45,41 @@ struct CalendarView: View {
                         ))
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Mod toggle — sağ üste katman olarak
+            modeToggle
+                .padding(.trailing, 14)
+                .padding(.top, 11)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TickerTheme.bgApp)
         .sheet(isPresented: $showingFocusDay) {
             FocusDayView(date: selectedDate, tasks: tasks)
         }
+    }
+
+    private var modeToggle: some View {
+        HStack(spacing: 1) {
+            ForEach(CalendarMode.allCases, id: \.self) { m in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { mode = m }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: m.icon).font(.system(size: 10))
+                        Text(m.rawValue).font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 9).padding(.vertical, 5)
+                    .background(mode == m ? TickerTheme.blue : Color.clear)
+                    .foregroundStyle(mode == m ? .white : TickerTheme.textTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(TickerTheme.bgPill)
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay(RoundedRectangle(cornerRadius: 7).stroke(TickerTheme.borderMid, lineWidth: 1))
     }
 }

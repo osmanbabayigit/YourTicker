@@ -76,7 +76,6 @@ struct EditTaskView: View {
 
     private var sheetHeader: some View {
         HStack(spacing: 12) {
-            // Renk dot
             Circle()
                 .fill(selectedColor.color)
                 .frame(width: 10, height: 10)
@@ -261,7 +260,15 @@ struct EditTaskView: View {
                         HStack(spacing: 9) {
                             Button {
                                 withAnimation { subtask.isCompleted.toggle() }
-                                if task.allSubtasksCompleted { task.isCompleted = true }
+                                // FIX: Çift yönlü senkronizasyon
+                                // Tüm alt görevler tamamlandıysa → üst görevi de tamamla
+                                if task.allSubtasksCompleted {
+                                    task.isCompleted = true
+                                }
+                                // Bir alt görev geri alındıysa → üst görevi de geri al
+                                if !subtask.isCompleted && task.isCompleted {
+                                    task.isCompleted = false
+                                }
                                 try? context.save()
                             } label: {
                                 ZStack {

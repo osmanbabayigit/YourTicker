@@ -52,7 +52,7 @@ struct StatsView: View {
         return "\(done.count)/\(active.count)"
     }
 
-    // MARK: - Saatlik yoğunluk (pomodoro seansları saate göre)
+    // MARK: - Saatlik yoğunluk
 
     private var hourlyData: [(hour: Int, count: Int)] {
         let grouped = Dictionary(grouping: filteredPomodoro.filter { $0.pomodoroMode == .focus }) {
@@ -83,7 +83,9 @@ struct StatsView: View {
         let cal = Calendar.current
         let now = Date()
         let periodTasks = tasks.filter { t in
-            let d = t.dueDate ?? t.dueDate
+            // FIX: Eski kod `let d = t.dueDate ?? t.dueDate` yazıyordu — sağ taraf anlamsız tekrardı.
+            // Düzeltildi: sadece t.dueDate kullanılıyor.
+            let d = t.dueDate
             switch period {
             case .today: return d.map { cal.isDateInToday($0) } ?? false
             case .week:  return d.map { cal.isDate($0, equalTo: now, toGranularity: .weekOfYear) } ?? false
@@ -192,11 +194,10 @@ struct StatsView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(color.opacity(0.12), lineWidth: 1))
     }
 
-    // MARK: - Grafikler (2 yan yana)
+    // MARK: - Grafikler
 
     private var chartsRow: some View {
         HStack(spacing: 10) {
-            // Saatlik yoğunluk
             VStack(alignment: .leading, spacing: 10) {
                 sectionLabel("Saatlik Yoğunluk", icon: "clock")
                 if hourlyData.isEmpty {
@@ -211,7 +212,6 @@ struct StatsView: View {
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(TickerTheme.borderSub, lineWidth: 1))
             .frame(maxWidth: .infinity)
 
-            // Haftalık trend
             VStack(alignment: .leading, spacing: 10) {
                 sectionLabel("Haftalık Trend", icon: "chart.bar")
                 weeklyChart
@@ -357,7 +357,6 @@ struct StatsView: View {
             VStack(spacing: 4) {
                 ForEach(filteredPomodoro.prefix(8)) { s in
                     HStack(spacing: 10) {
-                        // Mod rengi + ikonu
                         ZStack {
                             Circle()
                                 .fill(s.pomodoroMode.color.opacity(0.12))
@@ -367,7 +366,6 @@ struct StatsView: View {
                                 .foregroundStyle(s.pomodoroMode.color)
                         }
 
-                        // Bilgi
                         VStack(alignment: .leading, spacing: 2) {
                             Text(s.pomodoroMode.label)
                                 .font(.system(size: 12, weight: .medium))
@@ -382,7 +380,6 @@ struct StatsView: View {
 
                         Spacer()
 
-                        // Süre + saat
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("\(s.durationMinutes) dk")
                                 .font(.system(size: 11, weight: .semibold))

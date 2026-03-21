@@ -7,7 +7,9 @@ struct PomodoroView: View {
     @Query(sort: \PomodoroSession.date, order: .reverse) private var sessions: [PomodoroSession]
     @Query private var tasks: [TaskItem]
 
-    @StateObject private var nowPlaying = NowPlayingManager.shared
+    // FIX: Singleton için @StateObject değil @ObservedObject kullanılmalı.
+    // @StateObject ownership imply eder; singleton'a ownership alınmaz.
+    @ObservedObject private var nowPlaying = NowPlayingManager.shared
 
     // Timer state
     @State private var mode: PomodoroMode = .focus
@@ -15,8 +17,10 @@ struct PomodoroView: View {
     @State private var secondsLeft: Int = PomodoroSettings.focusMinutes * 60
     @State private var totalSeconds: Int = PomodoroSettings.focusMinutes * 60
     @State private var completedFocusSessions = 0
-    @State private var consecutiveSessions = 0  // Kesintisiz seans sayısı
     @State private var timer: Timer? = nil
+
+    // FIX: @State yerine @AppStorage — sekme değişince sıfırlanmıyordu.
+    @AppStorage("pomo_consecutive") private var consecutiveSessions: Int = 0
 
     // Görev
     @State private var linkedTask: TaskItem? = nil
@@ -33,7 +37,6 @@ struct PomodoroView: View {
     }
 
     private var focusScore: Int {
-        // Kesintisiz seans * 25 + (bugün toplam dakika / 5)
         let base = consecutiveSessions * 25
         let bonus = min(PomodoroStatsHelper.todayFocusMinutes(sessions) / 5, 50)
         return min(base + bonus, 100)
@@ -63,7 +66,6 @@ struct PomodoroView: View {
 
     private var timerPanel: some View {
         VStack(spacing: 0) {
-            // Top bar
             HStack {
                 Text("Pomodoro")
                     .font(.system(size: 14, weight: .semibold))
@@ -79,7 +81,6 @@ struct PomodoroView: View {
 
             Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
-            // Mod seçici
             HStack(spacing: 4) {
                 ForEach(PomodoroMode.allCases, id: \.self) { m in
                     Button { switchMode(m) } label: {
@@ -98,46 +99,31 @@ struct PomodoroView: View {
             Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
 
             Spacer()
-
-            // Ring
             ringView
-
             Spacer().frame(height: 24)
-
-            // Kontroller
             controls
-
             Spacer().frame(height: 18)
-
-            // Seans dots
             sessionDots
-
             Spacer()
         }
         .background(TickerTheme.bgApp)
     }
 
-    // MARK: - Ring (güzel animasyonlu)
+    // MARK: - Ring
 
     private var ringView: some View {
         ZStack {
-            // Dış halka - arka plan
             Circle()
                 .stroke(mode.color.opacity(0.08), lineWidth: 14)
                 .frame(width: 210, height: 210)
 
-            // Parlayan efekt — koşunca aktif
             if isRunning {
                 Circle()
-                    .stroke(
-                        mode.color.opacity(0.04),
-                        lineWidth: 24
-                    )
+                    .stroke(mode.color.opacity(0.04), lineWidth: 24)
                     .frame(width: 210, height: 210)
                     .blur(radius: 8)
             }
 
-            // İlerleme halkası
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(
@@ -153,7 +139,6 @@ struct PomodoroView: View {
                 .rotationEffect(.degrees(-90))
                 .animation(.linear(duration: 1), value: progress)
 
-            // Uç nokta parlaması
             if progress > 0.01 {
                 Circle()
                     .fill(mode.color)
@@ -164,7 +149,6 @@ struct PomodoroView: View {
                     .animation(.linear(duration: 1), value: progress)
             }
 
-            // İç içerik
             VStack(spacing: 5) {
                 Text(timeString)
                     .font(.system(size: 44, weight: .bold, design: .monospaced))
@@ -243,23 +227,14 @@ struct PomodoroView: View {
     private var sidePanel: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Now Playing
                 nowPlayingSection
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
-
-                // Odak skoru
                 focusScoreSection
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
-
-                // Aktif görev
                 activeTaskSection
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
-
-                // Sıradaki görevler
                 nextTasksSection
                 Rectangle().fill(TickerTheme.borderSub).frame(height: 1)
-
-                // Bugün
                 todayStatsSection
             }
         }
@@ -271,7 +246,6 @@ struct PomodoroView: View {
     private var nowPlayingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                // EQ animasyonu
                 if nowPlaying.info.isPlaying {
                     EQBarsView(color: TickerTheme.green)
                 } else {
@@ -288,7 +262,6 @@ struct PomodoroView: View {
                     .padding(.vertical, 4)
             } else {
                 HStack(spacing: 10) {
-                    // Albüm art
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(TickerTheme.green.opacity(0.15))
@@ -313,7 +286,6 @@ struct PomodoroView: View {
                     }
                 }
 
-                // Progress bar
                 if nowPlaying.info.duration > 0 {
                     VStack(spacing: 3) {
                         GeometryReader { geo in
@@ -547,7 +519,7 @@ struct PomodoroView: View {
 
         if mode == .focus {
             completedFocusSessions += 1
-            consecutiveSessions += 1
+            consecutiveSessions += 1  // @AppStorage — kalıcı
             let isLong = completedFocusSessions % PomodoroSettings.sessionsUntilLongBreak == 0
             switchMode(isLong ? .longBreak : .shortBreak)
         } else {
@@ -563,6 +535,8 @@ struct PomodoroView: View {
 struct EQBarsView: View {
     let color: Color
     @State private var heights: [CGFloat] = [6, 10, 8, 12, 7]
+    // FIX: Timer referansı saklanıyor, onDisappear'da invalidate edilebilir
+    @State private var barTimer: Timer? = nil
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 2) {
@@ -579,12 +553,17 @@ struct EQBarsView: View {
             }
         }
         .frame(height: 12)
-        .onAppear { animateBars() }
+        .onAppear { startAnimating() }
+        .onDisappear {
+            // FIX: Eski kod timer'ı hiç invalidate etmiyordu → bellek sızıntısı
+            barTimer?.invalidate()
+            barTimer = nil
+        }
     }
 
-    private func animateBars() {
+    private func startAnimating() {
         withAnimation { heights = [10, 6, 12, 8, 11] }
-        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+        barTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
             withAnimation {
                 heights = heights.map { _ in CGFloat.random(in: 4...12) }
             }
